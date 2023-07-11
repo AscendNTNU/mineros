@@ -133,7 +133,7 @@ class MinerosMain(Node):
         wp = Waypoint()
         
         formatted_points: List[Tuple[float, float, float]] = list(map(lambda wp: [wp.x_lat, wp.y_long, wp.z_alt], points))
-        threading.Thread(target=handle_mission_push, args=(self.bot, formatted_points)).start()
+        threading.Thread(target=handle_mission_push, args=(self.bot, formatted_points, self.goal_acceptance)).start()
         response.success = True
         return response
 
