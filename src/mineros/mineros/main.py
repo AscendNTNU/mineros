@@ -8,8 +8,7 @@ from typing import List, Tuple
 from mavros_msgs.srv import WaypointPush, WaypointClear, SetMode
 from mavros_msgs.msg import Waypoint, WaypointList, WaypointReached, State
 
-from geometry_msgs.msg import PoseStamped
-from .utis.movement import handle_mission_push
+from geometry_msgs.msg import PoseStamped, PoseArray, Pose
 
 mineflayer = require('mineflayer')
 pathfinder = require('mineflayer-pathfinder')
@@ -55,8 +54,7 @@ class MinerosMain(Node):
         """
         Modes: 
         - Loiter
-        - Mission
-        - Offboard
+        - Active
         """
 
         self.mode_control_service = self.create_service(
@@ -65,30 +63,18 @@ class MinerosMain(Node):
             self.mode_control_callback
         )
 
-        # Mission mode
-        self.mission_push = self.create_service(
-            WaypointPush,
-            '/mineros/mission/push',
-            self.mission_push_callback,
-        )
-
-        self.waypoint_reached_topic = self.create_publisher(
-            WaypointReached,
-            '/mineros/mission/reached',
+        # Active mode
+        self.set_potision_xyz = self.create_subscription(
+            PoseStamped,
+            '/mineros/set_position/xyz',
+            self.set_position_xyz_callback,
             10
         )
 
-        self.mission_clear_service = self.create_service(
-            WaypointClear,
-            '/mineros/mission/clear',
-            self.mission_clear_callback
-        )
-
-        # Offboard mode
-        self.set_potision_local = self.create_subscription(
+        self.set_position_xz = self.create_subscription(
             PoseStamped,
-            '/mineros/set_position/local',
-            self.set_position_local_callback,
+            '/mineros/set_position/xz',
+            self.set_position_xz_callback,
             10
         )
 
@@ -107,7 +93,7 @@ class MinerosMain(Node):
             callback_group=timers_cbg
         )
 
-        # Offboard mode publishers
+        # Active mode publishers
         self.local_position_publisher = self.create_publisher(
             PoseStamped,
             '/mineros/local_position/pose',
@@ -120,30 +106,25 @@ class MinerosMain(Node):
             callback_group=timers_cbg
         )
 
-        threading.Thread(target=handle_mission_push, args=(self.bot,)).start()
-
     def mode_control_callback(self, request: SetMode.Request, response: SetMode.Response):
         self.get_logger().info(f"Mode control: {request.custom_mode}")
         self.mode = request.custom_mode
         response.success = True
         return response
 
-    def mission_push_callback(self, request: WaypointPush.Request, response: WaypointPush.Response):
-        points: List[Waypoint] = request.waypoints
-        wp = Waypoint()
-        
-        formatted_points: List[Tuple[float, float, float]] = list(map(lambda wp: [wp.x_lat, wp.y_long, wp.z_alt], points))
-        threading.Thread(target=handle_mission_push, args=(self.bot, formatted_points, self.goal_acceptance)).start()
-        response.success = True
-        return response
+    def set_position_xyz_callback(self, msg: PoseStamped):
+        self.bot.pathfinder.setGoal(None)
 
+        goal = pathfinder.goals.GoalNear(
+            round(msg.pose.position.x, 2), round(msg.pose.position.y, 2), round(msg.pose.position.z, 2), self.goal_acceptance)
+        self.bot.pathfinder.setGoal(goal)
 
-    def mission_clear_callback(self, request: WaypointClear.Request, response: WaypointClear.Response):
-        pass
+    def set_position_xz_callback(self, msg: PoseStamped):
+        self.bot.pathfinder.setGoal(None)
 
-    def set_position_local_callback(self, msg: PoseStamped):
-        self.bot.pathfinder.setGoal(pathfinder.goals.GoalNear(
-            msg.pose.position.x, msg.pose.position.y, msg.pose.position.z, self.goal_acceptance))
+        goal = pathfinder.goals.GoalNearXZ(
+            round(msg.pose.position.x, 2), round(msg.pose.position.z, 2), self.goal_acceptance)
+        self.bot.pathfinder.setGoal(goal)
 
     def state_timer_callback(self):
         state = State()

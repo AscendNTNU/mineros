@@ -21,6 +21,7 @@ setup(
     entry_points={
         'console_scripts': [
             'mineros = mineros.main:main',
+            'movement_tester = mineros.movement_test:main'
         ]
     },
 )
