@@ -64,17 +64,17 @@ class MinerosMain(Node):
         )
 
         # Active mode
-        self.set_potision_xyz = self.create_subscription(
+        self.set_potision = self.create_subscription(
             PoseStamped,
-            '/mineros/set_position/xyz',
-            self.set_position_xyz_callback,
+            '/mineros/set_position',
+            self.set_position_callback,
             10
         )
 
-        self.set_position_xz = self.create_subscription(
-            PoseStamped,
-            '/mineros/set_position/xz',
-            self.set_position_xz_callback,
+        self.set_position_composite = self.create_subscription(
+            PoseArray,
+            '/mineros/set_position/composite',
+            self.set_position_composite_callback,
             10
         )
 
@@ -112,18 +112,32 @@ class MinerosMain(Node):
         response.success = True
         return response
 
-    def set_position_xyz_callback(self, msg: PoseStamped):
+    def set_position_callback(self, msg: PoseStamped):
         self.bot.pathfinder.setGoal(None)
 
-        goal = pathfinder.goals.GoalNear(
-            round(msg.pose.position.x, 2), round(msg.pose.position.y, 2), round(msg.pose.position.z, 2), self.goal_acceptance)
+        if msg.pose.position.y == -1.0:
+            goal = pathfinder.goals.GoalNearXZ(
+                round(msg.pose.position.x, 2), round(msg.pose.position.z, 2), self.goal_acceptance)
+        else:
+            goal = pathfinder.goals.GoalNear(
+                round(msg.pose.position.x, 2), round(msg.pose.position.y, 2), round(msg.pose.position.z, 2), self.goal_acceptance)
+
         self.bot.pathfinder.setGoal(goal)
 
-    def set_position_xz_callback(self, msg: PoseStamped):
+    def set_position_composite_callback(self, msg: PoseArray):
         self.bot.pathfinder.setGoal(None)
 
-        goal = pathfinder.goals.GoalNearXZ(
-            round(msg.pose.position.x, 2), round(msg.pose.position.z, 2), self.goal_acceptance)
+        goals = []
+        for pose in msg.poses:
+
+            if pose.position.y == -1.0:
+                goals.append(pathfinder.goals.GoalNearXZ(
+                    round(pose.position.x, 2), round(pose.position.z, 2), self.goal_acceptance))
+            else:
+                goals.append(pathfinder.goals.GoalNear(
+                    round(pose.position.x, 2), round(pose.position.y, 2), round(pose.position.z, 2), self.goal_acceptance))
+
+        goal = pathfinder.goals.GoalCompositeAll(goals)
         self.bot.pathfinder.setGoal(goal)
 
     def state_timer_callback(self):

@@ -25,21 +25,15 @@ class MovementTestNode(Node):
             10
         )
 
-        self.set_position_xyz_pub = self.create_publisher(
+        self.set_position_pub = self.create_publisher(
             PoseStamped,
-            '/mineros/set_position/xyz',
+            '/mineros/set_position',
             10
         )
 
-        self.set_position_xz_pub = self.create_publisher(
-            PoseStamped,
-            '/mineros/set_position/xz',
-            10
-        )
-
-        self.set_position_composite_xz_pub = self.create_publisher(
+        self.set_position_composite_pub = self.create_publisher(
             PoseArray,
-            '/mineros/set_position/composite/xz',
+            '/mineros/set_position/composite',
             10
         )
 
@@ -47,21 +41,6 @@ class MovementTestNode(Node):
 
     def position_cb(self, msg: PoseStamped):
         self.position = msg
-
-    def set_position_xyz(self, x: float, y: float, z: float):
-        pose = PoseStamped()
-        pose.pose.position.x = x
-        pose.pose.position.y = y
-        pose.pose.position.z = z
-
-        self.set_position_xyz_pub.publish(pose)
-
-    def set_position_xz(self, x: float, z: float):
-        pose = PoseStamped()
-        pose.pose.position.x = x
-        pose.pose.position.z = z
-
-        self.set_position_xz_pub.publish(pose)
 
     def tests(self):
         for i in range(5):
@@ -71,6 +50,7 @@ class MovementTestNode(Node):
 
         self.test_position_xyz(5)
         self.test_position_xz(5)
+        self.test_composite()
 
         self.destroy_node()
         rclpy.shutdown()
@@ -83,7 +63,7 @@ class MovementTestNode(Node):
         ps.pose.position.x = self.position.pose.position.x + 1
         ps.pose.position.y = self.position.pose.position.y - 1
         ps.pose.position.z = self.position.pose.position.z + 1
-        self.set_position_xyz_pub.publish(ps)
+        self.set_position_pub.publish(ps)
 
         time.sleep(sleep)
         if not stress_test:
@@ -96,16 +76,40 @@ class MovementTestNode(Node):
 
         ps = PoseStamped()
         ps.pose.position.x = self.position.pose.position.x + 1
-        ps.pose.position.y = self.position.pose.position.y
+        ps.pose.position.y = -1.0
         ps.pose.position.z = self.position.pose.position.z + 1
-        self.set_position_xyz_pub.publish(ps)
+        self.set_position_pub.publish(ps)
 
         time.sleep(sleep)
         if not stress_test:
+            ps.pose.position.y = self.position.pose.position.y
             assert self.distance_between_2_points(self.position, ps) <= 1
 
         self.get_logger().info("test_position_xz passed")
 
+    def test_composite(self):
+        poses = []
+
+        for i in range(10):
+            p = Pose()
+            p.position.x = self.position.pose.position.x + i
+            p.position.y = -1.0
+            p.position.z = self.position.pose.position.z + i
+            poses.append(p)
+        
+        pa = PoseArray()
+        pa.poses = poses
+        
+        self.set_position_composite_pub.publish(pa)
+        
+        time.sleep(10)
+        final_ps = PoseStamped()
+        final_ps.pose = poses[-1]
+        final_ps.pose.position.y = self.position.pose.position.y
+        
+        assert self.distance_between_2_points(self.position, final_ps)
+        
+        self.get_logger().info('composite_test passed')
 
     def distance_between_2_points(self, point1: PoseStamped, point2: PoseStamped):
         return math.sqrt(
