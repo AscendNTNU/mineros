@@ -1,21 +1,24 @@
-import threading
+import asyncio
+from threading import Thread
+from javascript import require, On, Once, AsyncTask, once, off
+from typing import List, Tuple
+
 import rclpy
 from rclpy.node import Node
 from rclpy.callback_groups import ReentrantCallbackGroup
-from javascript import require, On, Once, AsyncTask, once, off
-from typing import List, Tuple
+
 
 from mavros_msgs.srv import WaypointPush, WaypointClear, SetMode
 from mavros_msgs.msg import Waypoint, WaypointList, WaypointReached, State
 
 from geometry_msgs.msg import PoseStamped, PoseArray, Pose
-from mineros_interfaces.srv import FindBlocks
+from mineros_interfaces.srv import FindBlocks, MineBlocks
 
 mineflayer = require('mineflayer')
 pathfinder = require('mineflayer-pathfinder')
 toolPlugin = require('mineflayer-tool').plugin
 collectBlock = require('mineflayer-collectblock').plugin
-vec3 = require('vec3')
+Vec3 = require('vec3').Vec3
 
 
 class MinerosMain(Node):
@@ -25,7 +28,7 @@ class MinerosMain(Node):
 
         # Params
         self.declare_parameter('goal_acceptance', 1)
-        self.declare_parameter('bot_username', 'MinerosBot')
+        self.declare_parameter('bot_username', 'MinerosBotTest')
         self.declare_parameter('lan_port', 25565)
 
         BOT_USERNAME = self.get_parameter(
@@ -40,6 +43,7 @@ class MinerosMain(Node):
         self.bot.loadPlugin(pathfinder.pathfinder)
         self.bot.loadPlugin(toolPlugin)
         self.bot.loadPlugin(collectBlock)
+        
 
         # The spawn event
         once(self.bot, 'login')
@@ -76,14 +80,19 @@ class MinerosMain(Node):
             self.set_position_composite_callback,
             10
         )
-        
+
         # Mining control
-        self.find_blocks = self.create_service(
+        self.find_blocks_service = self.create_service(
             FindBlocks,
             '/mineros/mining/find_blocks',
             self.find_blocks_callback
         )
-        
+
+        self.mine_blocks_service = self.create_service(
+            MineBlocks,
+            '/mineros/mining/mine_blocks',
+            self.mine_blocks_callback
+        )
 
         # Info publishers
         self.local_position_publisher = self.create_publisher(
@@ -131,21 +140,21 @@ class MinerosMain(Node):
 
         goal = pathfinder.goals.GoalCompositeAll(goals)
         self.bot.pathfinder.setGoal(goal)
-        
+
     def find_blocks_callback(self, request: FindBlocks.Request, response: FindBlocks.Response):
         self.get_logger().info(f"Find blocks: {request.blockid}")
-        
+
         options = {}
         options['matching'] = request.blockid
         if request.max_distance != 0:
-            options['maxDistance'] = request.max_distance 
+            options['maxDistance'] = request.max_distance
         if request.count != 0:
             options['count'] = request.count
-            
+
         blocks = self.bot.findBlocks(options)
-        
+
         assert blocks is not None
-        
+
         pa = PoseArray()
         for block in blocks:
             p = Pose()
@@ -153,10 +162,28 @@ class MinerosMain(Node):
             p.position.y = float(block.y)
             p.position.z = float(block.z)
             pa.poses.append(p)
-        
+
         response.blocks = pa
         return response
-        
+
+    def mine_blocks_callback(self, request: MineBlocks.Request, response: MineBlocks.Response):
+        poses: List[Pose] = request.blocks.poses
+
+        if len(poses) == 0:
+            response.success = False
+            return response
+
+        for pose in poses:
+            vec = Vec3(pose.position.x, pose.position.y, pose.position.z)
+          
+            block = self.bot.blockAt(vec)
+            self.bot.collectBlock.collect(block)
+            
+            self.get_logger().info(f"collected block: {vec}")
+
+        response.success = True
+        return response
+
     def local_pose_timer_callback(self):
         bot_position = self.bot.entity.position
         # self.get_logger().info(f"Bot position: {bot_position}")

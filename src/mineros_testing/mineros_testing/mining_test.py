@@ -11,7 +11,7 @@ from mavros_msgs.srv import WaypointPush, WaypointClear, SetMode
 from mavros_msgs.msg import Waypoint, WaypointList, WaypointReached, State
 
 from geometry_msgs.msg import PoseStamped, PoseArray, Pose
-from mineros_interfaces.srv import FindBlocks
+from mineros_interfaces.srv import FindBlocks, MineBlocks
 
 
 class MiningTestNode(Node):
@@ -23,12 +23,18 @@ class MiningTestNode(Node):
             FindBlocks,
             '/mineros/mining/find_blocks',
         )
+        
+        self.mine_block_client = self.create_client(
+            MineBlocks,
+            '/mineros/mining/mine_blocks'
+        )
       
         self.tests()
         # threading.Thread(target=self.tests).start()
 
     def tests(self):
         self.test_find_grass()
+        self.test_mine_block()
         
         self.destroy_node()
         rclpy.shutdown()
@@ -36,7 +42,6 @@ class MiningTestNode(Node):
     def test_find_grass(self):
         block_search = FindBlocks.Request()
         block_search.blockid = 8
-        block_search.count = 10
         
         self.get_logger().info('Find grass test started')
         while not self.find_block_client.wait_for_service(timeout_sec=1.0):
@@ -52,6 +57,31 @@ class MiningTestNode(Node):
         assert len(blocks.blocks.poses) > 0
         self.get_logger().info('Find grass test passed')
         self.get_logger().info(f'Found {len(blocks.blocks.poses)} grass blocks')
+        
+    def test_mine_block(self):
+        block_search = FindBlocks.Request()
+        block_search.blockid = 8
+        block_search.count = 3
+        while not self.find_block_client.wait_for_service(timeout_sec=1.0):
+            self.get_logger().info('Waiting for service') 
+        future = self.find_block_client.call_async(block_search)
+        rclpy.spin_until_future_complete(self, future)
+        blocks = future.result()
+        
+        req = MineBlocks.Request()
+        req.blocks = blocks.blocks
+        
+        self.get_logger().info('Mine block test started')
+        self.get_logger().info(f'Mining {len(blocks.blocks.poses)} blocks')
+        future = self.mine_block_client.call_async(req)
+        rclpy.spin_until_future_complete(self, future)
+        success = future.result()
+        assert success
+        self.get_logger().info('Mine block test passed')
+            
+        
+        
+        
    
 def main(args=None):
     rclpy.init(args=args)
