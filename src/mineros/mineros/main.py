@@ -9,9 +9,13 @@ from mavros_msgs.srv import WaypointPush, WaypointClear, SetMode
 from mavros_msgs.msg import Waypoint, WaypointList, WaypointReached, State
 
 from geometry_msgs.msg import PoseStamped, PoseArray, Pose
+from mineros_interfaces.srv import FindBlocks
 
 mineflayer = require('mineflayer')
 pathfinder = require('mineflayer-pathfinder')
+toolPlugin = require('mineflayer-tool').plugin
+collectBlock = require('mineflayer-collectblock').plugin
+vec3 = require('vec3')
 
 
 class MinerosMain(Node):
@@ -34,6 +38,8 @@ class MinerosMain(Node):
         self.bot = mineflayer.createBot(
             {'host': 'localhost', 'port': LAN_PORT, 'username': BOT_USERNAME, 'hideErrors': False})
         self.bot.loadPlugin(pathfinder.pathfinder)
+        self.bot.loadPlugin(toolPlugin)
+        self.bot.loadPlugin(collectBlock)
 
         # The spawn event
         once(self.bot, 'login')
@@ -50,20 +56,13 @@ class MinerosMain(Node):
 
         timers_cbg = ReentrantCallbackGroup()
 
-        # Mode control
-        """
-        Modes: 
-        - Loiter
-        - Active
-        """
-
         self.mode_control_service = self.create_service(
             SetMode,
             '/mineros/set_mode',
             self.mode_control_callback
         )
 
-        # Active mode
+        # Movement control
         self.set_potision = self.create_subscription(
             PoseStamped,
             '/mineros/set_position',
@@ -77,23 +76,16 @@ class MinerosMain(Node):
             self.set_position_composite_callback,
             10
         )
-
-        # Info Publishers
-
-        # State publishers
-        self.state_topic = self.create_publisher(
-            State,
-            '/mineros/state',
-            10
+        
+        # Mining control
+        self.find_blocks = self.create_service(
+            FindBlocks,
+            '/mineros/mining/find_blocks',
+            self.find_blocks_callback
         )
+        
 
-        self.state_timer = self.create_timer(
-            0.2,
-            self.state_timer_callback,
-            callback_group=timers_cbg
-        )
-
-        # Active mode publishers
+        # Info publishers
         self.local_position_publisher = self.create_publisher(
             PoseStamped,
             '/mineros/local_position/pose',
@@ -139,15 +131,35 @@ class MinerosMain(Node):
 
         goal = pathfinder.goals.GoalCompositeAll(goals)
         self.bot.pathfinder.setGoal(goal)
-
-    def state_timer_callback(self):
-        state = State()
-        state.mode = self.mode
-        self.state_topic.publish(state)
-
+        
+    def find_blocks_callback(self, request: FindBlocks.Request, response: FindBlocks.Response):
+        self.get_logger().info(f"Find blocks: {request.blockid}")
+        
+        options = {}
+        options['matching'] = request.blockid
+        if request.max_distance != 0:
+            options['maxDistance'] = request.max_distance 
+        if request.count != 0:
+            options['count'] = request.count
+            
+        blocks = self.bot.findBlocks(options)
+        
+        assert blocks is not None
+        
+        pa = PoseArray()
+        for block in blocks:
+            p = Pose()
+            p.position.x = float(block.x)
+            p.position.y = float(block.y)
+            p.position.z = float(block.z)
+            pa.poses.append(p)
+        
+        response.blocks = pa
+        return response
+        
     def local_pose_timer_callback(self):
         bot_position = self.bot.entity.position
-        self.get_logger().info(f"Bot position: {bot_position}")
+        # self.get_logger().info(f"Bot position: {bot_position}")
 
         pose = PoseStamped()
         pose.pose.position.x = float(bot_position.x)

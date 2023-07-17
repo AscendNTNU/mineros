@@ -1,6 +1,6 @@
 from setuptools import find_packages, setup
 
-package_name = 'mineros'
+package_name = 'mineros_testing'
 
 setup(
     name=package_name,
@@ -20,7 +20,8 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'mineros = mineros.main:main'
+            'movement_tester = mineros_testing.movement_test:main',
+            'mining_tester = mineros_testing.mining_test:main',
         ]
     },
 )
