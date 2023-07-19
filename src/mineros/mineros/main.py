@@ -12,7 +12,8 @@ from mavros_msgs.srv import WaypointPush, WaypointClear, SetMode
 from mavros_msgs.msg import Waypoint, WaypointList, WaypointReached, State
 
 from geometry_msgs.msg import PoseStamped, PoseArray, Pose
-from mineros_interfaces.srv import FindBlocks, MineBlocks
+from mineros_interfaces.srv import FindBlocks, MineBlocks, Inventory
+from mineros_interfaces.msg import Item
 
 mineflayer = require('mineflayer')
 pathfinder = require('mineflayer-pathfinder')
@@ -43,7 +44,6 @@ class MinerosMain(Node):
         self.bot.loadPlugin(pathfinder.pathfinder)
         self.bot.loadPlugin(toolPlugin)
         self.bot.loadPlugin(collectBlock)
-        
 
         # The spawn event
         once(self.bot, 'login')
@@ -92,6 +92,12 @@ class MinerosMain(Node):
             MineBlocks,
             '/mineros/mining/mine_blocks',
             self.mine_blocks_callback
+        )
+
+        self.inventory_contents_service = self.create_service(
+            Inventory,
+            '/mineros/inventory/contents',
+            self.inventory_contents_service_callback
         )
 
         # Info publishers
@@ -175,13 +181,28 @@ class MinerosMain(Node):
 
         for pose in poses:
             vec = Vec3(pose.position.x, pose.position.y, pose.position.z)
-          
+
             block = self.bot.blockAt(vec)
             self.bot.collectBlock.collect(block)
-            
+
             self.get_logger().info(f"collected block: {vec}")
 
         response.success = True
+        return response
+
+    def inventory_contents_service_callback(self, request: Inventory.Request, response: Inventory.Response):
+        items = self.bot.inventory.items()
+        inventory = []
+        
+        self.get_logger().info(f"Inventory contents: {items}")
+        for item in items:
+            item_msg = Item()
+            item_msg.id = item.type
+            item_msg.count = item.count
+            item_msg.slot = item.slot
+            inventory.append(item_msg)
+        
+        response.inventory = inventory
         return response
 
     def local_pose_timer_callback(self):
