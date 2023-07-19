@@ -179,15 +179,20 @@ class MinerosMain(Node):
             response.success = False
             return response
 
+        response.success = True
+
         for pose in poses:
             vec = Vec3(pose.position.x, pose.position.y, pose.position.z)
-
+            
             block = self.bot.blockAt(vec)
+            if not self.bot.canDigBlock(block):
+                self.get_logger().info(f"Can't dig block: {vec}")
+                response.success = False
+            
             self.bot.collectBlock.collect(block)
 
             self.get_logger().info(f"collected block: {vec}")
 
-        response.success = True
         return response
 
     def inventory_contents_service_callback(self, request: Inventory.Request, response: Inventory.Response):
