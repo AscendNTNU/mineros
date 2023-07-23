@@ -13,7 +13,7 @@ returns a geometry_msgs/PoseArray with the blocks found
 call the `/mineros/mining/mine_blocks` service with the MineBlocks service request. The request has the following params:
 - blocks: a geometry_msgs/PoseArray with the blocks to mine
 
-returns a std_msgs/Bool with the result of the operation
+returns a std_msgs/Bool[] with the result of each mining operation
 
 # Inventory
 call the `/mineros/inventory/contents` service with the Inventory service request. The request is a trigger and returns:

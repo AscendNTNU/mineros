@@ -8,12 +8,11 @@ from rclpy.node import Node
 from rclpy.callback_groups import ReentrantCallbackGroup
 
 
-from mavros_msgs.srv import WaypointPush, WaypointClear, SetMode
-from mavros_msgs.msg import Waypoint, WaypointList, WaypointReached, State
+from mavros_msgs.srv import SetMode
 
 from geometry_msgs.msg import PoseStamped, PoseArray, Pose
-from mineros_interfaces.srv import FindBlocks, MineBlocks, Inventory
-from mineros_interfaces.msg import Item
+from mineros_interfaces.srv import FindBlocks, MineBlocks, Inventory, PlaceBlocks
+from mineros_interfaces.msg import Item, BlockPose
 
 mineflayer = require('mineflayer')
 pathfinder = require('mineflayer-pathfinder')
@@ -100,6 +99,13 @@ class MinerosMain(Node):
             self.inventory_contents_service_callback
         )
 
+        # Interaction control
+        self.place_blocks_service = self.create_service(
+            PlaceBlocks,
+            '/mineros/interaction/place_blocks',
+            self.place_blocks_service_callback
+        )
+
         # Info publishers
         self.local_position_publisher = self.create_publisher(
             PoseStamped,
@@ -179,20 +185,21 @@ class MinerosMain(Node):
             response.success = False
             return response
 
-        response.success = True
-
+        success = []
         for pose in poses:
             vec = Vec3(pose.position.x, pose.position.y, pose.position.z)
             
             block = self.bot.blockAt(vec)
             if not self.bot.canDigBlock(block):
                 self.get_logger().info(f"Can't dig block: {vec}")
-                response.success = False
+                success.append(False)
             
             self.bot.collectBlock.collect(block)
 
             self.get_logger().info(f"collected block: {vec}")
-
+            success.append(True)
+        
+        response.success = success
         return response
 
     def inventory_contents_service_callback(self, request: Inventory.Request, response: Inventory.Response):
@@ -210,6 +217,10 @@ class MinerosMain(Node):
         response.inventory = inventory
         return response
 
+    def place_blocks_service_callback(self, request: PlaceBlocks.Request, response: PlaceBlocks.Response):
+        
+    
+    
     def local_pose_timer_callback(self):
         bot_position = self.bot.entity.position
         # self.get_logger().info(f"Bot position: {bot_position}")
