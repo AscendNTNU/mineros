@@ -3,6 +3,7 @@ build/
 install/
 log/
 venv/
+docs/itemName2id.txt
 
 # Node
 node_modules/

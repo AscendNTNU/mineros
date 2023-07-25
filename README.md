@@ -52,8 +52,17 @@ print(mc_data.blocksByName['grass_block'].id)
 ```
 This requires the connecting an additional bot to the server, this bot must always be called DataBot to differentiate it from other bots
 ___
+# API docs
 
-# Links to API docs
+Following is general api information and links to api docs.
+
+## Minecraft data
+
+Several of the services and topics require knowledge of the minecraft instance data, this varries depending on minecraft version, so on boot mineros will write a mapping of all item names to data ids to a file called itemName2id.txt, this file is located under the docs folder.
+
+This file will be unique to every minecraft version, so if you change the version of minecraft you are using, you will need to restart mineros to overwrite the file.
+
+## Links to API docs
 - [Movement](docs/movement.md)
 - [Navigation](docs/navigation.md)
 - [Mining](docs/mining.md)

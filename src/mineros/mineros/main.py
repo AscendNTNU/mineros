@@ -118,6 +118,10 @@ class MinerosMain(Node):
             self.local_pose_timer_callback,
             callback_group=timers_cbg
         )
+        
+        # Write item by name to file
+        with open('docs/itemName2id.txt', 'w') as f:
+            f.write(str(self.bot.registry.itemsByName))
 
     def mode_control_callback(self, request: SetMode.Request, response: SetMode.Response):
         self.get_logger().info(f"Mode control: {request.custom_mode}")
@@ -283,6 +287,9 @@ class MinerosMain(Node):
             
 
         return response
+    
+    
+    
 
     def local_pose_timer_callback(self):
         bot_position = self.bot.entity.position
