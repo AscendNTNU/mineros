@@ -56,3 +56,5 @@ ___
 # Links to API docs
 - [Movement](docs/movement.md)
 - [Navigation](docs/navigation.md)
+- [Mining](docs/mining.md)
+- [Building](docs/building.md)
