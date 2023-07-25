@@ -262,6 +262,11 @@ class MinerosMain(Node):
 
             # THIS IS VERY WEIRD BUT GOD KNOWS HOW THIS SHITTY JAVASCRIPT GARBAGE WORKS
             # WHAT THE FUCK
+            
+            # It seems that the problem has to do with timing, hence the 1 second sleep
+            # the nested try catch is in case the 1 second sleep is too short, the try catch
+            # works because whenever it fails it incours a 5 second timeout this shitty structure 
+            # causes the 
             try:
                 time.sleep(1)
                 self.bot.placeBlock(block, face_vector)
