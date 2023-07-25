@@ -1,4 +1,4 @@
-import asyncio
+import time
 from threading import Thread
 from javascript import require, On, Once, AsyncTask, once, off
 from typing import List, Tuple
@@ -10,7 +10,7 @@ from rclpy.callback_groups import ReentrantCallbackGroup
 
 from mavros_msgs.srv import SetMode
 
-from geometry_msgs.msg import PoseStamped, PoseArray, Pose
+from geometry_msgs.msg import PoseStamped, PoseArray, Pose, Point
 from mineros_interfaces.srv import FindBlocks, MineBlocks, Inventory, PlaceBlocks
 from mineros_interfaces.msg import Item, BlockPose
 
@@ -188,39 +188,94 @@ class MinerosMain(Node):
         success = []
         for pose in poses:
             vec = Vec3(pose.position.x, pose.position.y, pose.position.z)
-            
+
             block = self.bot.blockAt(vec)
             if not self.bot.canDigBlock(block):
                 self.get_logger().info(f"Can't dig block: {vec}")
                 success.append(False)
-            
+
             self.bot.collectBlock.collect(block)
 
             self.get_logger().info(f"collected block: {vec}")
             success.append(True)
-        
+
         response.success = success
         return response
 
     def inventory_contents_service_callback(self, request: Inventory.Request, response: Inventory.Response):
         items = self.bot.inventory.items()
         inventory = []
-        
+
         self.get_logger().info(f"Inventory contents: {items}")
         for item in items:
             item_msg = Item()
             item_msg.id = item.type
             item_msg.count = item.count
             item_msg.slot = item.slot
+            item_msg.metadata = item.metadata
             inventory.append(item_msg)
-        
+
         response.inventory = inventory
         return response
 
     def place_blocks_service_callback(self, request: PlaceBlocks.Request, response: PlaceBlocks.Response):
-        
-    
-    
+        blocks: List[BlockPose] = request.blocks
+
+        self.get_logger().info(f"Placing {len(blocks)} blocks")
+
+        if len(blocks) == 0:
+            response.success = [False for _ in range(len(blocks))]
+            return response
+
+        response.success = []
+        for block in blocks:
+            item: Item = block.block
+            point: Point = block.point
+            face_vector: Point = block.face_vector
+            point = Vec3(point.x, point.y, point.z)
+            face_vector = Vec3(face_vector.x, face_vector.y, face_vector.z)
+            
+            self.get_logger().info(f"Placing block: {item.id} at {point} with {face_vector}")
+
+            block = self.bot.blockAt(point)
+
+            if block.name == 'air':
+                self.get_logger().info(f"Can't place block on air")
+                response.success.append(False)
+                continue
+
+            # Get to block
+            self.bot.pathfinder.setGoal(None)
+            # goal = pathfinder.goals.GoalGetToBlock(point.x - 1, point.y, point.z)
+            goal = pathfinder.goals.GoalPlaceBlock(block.position.plus(face_vector), self.bot.world, {'range':5, 'half': 'top'})
+            self.bot.pathfinder.setGoal(goal)
+
+            while self.bot.pathfinder.isMoving():
+                time.sleep(0.5)
+
+            # Bad hack to get the item object TODO: Fix this, if problem
+            items = self.bot.inventory.items()
+            item = list(filter(lambda i: i.type == item.id, items))[0]
+
+            self.bot.equip(item, 'hand')
+
+            try:
+                self.bot.waitForTicks(3)
+                self.bot.placeBlock(block, face_vector)
+                response.success.append(True)
+            except Exception as e:
+                self.get_logger().info(f"Failed to place block on first try. retrying")
+                try:
+                    self.bot.placeBlock(block, face_vector)
+                    response.success.append(True)
+                except Exception as e:
+                    self.get_logger().info(f'{e}')
+                    response.success.append(False)
+            
+            
+
+        return response
+
     def local_pose_timer_callback(self):
         bot_position = self.bot.entity.position
         # self.get_logger().info(f"Bot position: {bot_position}")
