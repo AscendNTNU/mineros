@@ -126,7 +126,7 @@ class MiningTestNode(Node):
         point.x = float(math.ceil(point.x))
         point.z = float(math.ceil(point.z))
 
-        for i in range(3):
+        for i in range(10):
             point.x -= i * 2
             blockpose = BlockPose()
             blockpose.block = item

@@ -259,8 +259,11 @@ class MinerosMain(Node):
 
             self.bot.equip(item, 'hand')
 
+
+            # THIS IS VERY WEIRD BUT GOD KNOWS HOW THIS SHITTY JAVASCRIPT GARBAGE WORKS
+            # WHAT THE FUCK
             try:
-                self.bot.waitForTicks(3)
+                time.sleep(1)
                 self.bot.placeBlock(block, face_vector)
                 response.success.append(True)
             except Exception as e:
