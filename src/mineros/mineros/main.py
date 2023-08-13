@@ -8,10 +8,8 @@ from rclpy.node import Node
 from rclpy.callback_groups import ReentrantCallbackGroup
 
 
-from mavros_msgs.srv import SetMode
-
 from geometry_msgs.msg import PoseStamped, PoseArray, Pose, Point
-from mineros_interfaces.srv import FindBlocks, MineBlocks, Inventory, PlaceBlocks
+from mineros_interfaces.srv import FindBlocks, MineBlock, Inventory, PlaceBlock, Craft, BlockInfo
 from mineros_interfaces.msg import Item, BlockPose
 
 mineflayer = require('mineflayer')
@@ -52,20 +50,19 @@ class MinerosMain(Node):
         self.movements = pathfinder.Movements(self.bot)
         self.bot.pathfinder.setMovements(self.movements)
 
-        self.mode = 'Loiter'
         self.mission = []
         self.mission_thread = None
         self.current_position = self.bot.entity.position
 
         timers_cbg = ReentrantCallbackGroup()
 
-        self.mode_control_service = self.create_service(
-            SetMode,
-            '/mineros/set_mode',
-            self.mode_control_callback
+        #Movement control
+        self.find_y_service = self.create_service(
+            BlockInfo,
+            '/mineros/findy',
+            self.find_y_callback
         )
 
-        # Movement control
         self.set_potision = self.create_subscription(
             PoseStamped,
             '/mineros/set_position',
@@ -87,10 +84,10 @@ class MinerosMain(Node):
             self.find_blocks_callback
         )
 
-        self.mine_blocks_service = self.create_service(
-            MineBlocks,
-            '/mineros/mining/mine_blocks',
-            self.mine_blocks_callback
+        self.mine_block_service = self.create_service(
+            MineBlock,
+            '/mineros/mining/mine_block',
+            self.mine_block_callback
         )
 
         self.inventory_contents_service = self.create_service(
@@ -100,10 +97,16 @@ class MinerosMain(Node):
         )
 
         # Interaction control
-        self.place_blocks_service = self.create_service(
-            PlaceBlocks,
-            '/mineros/interaction/place_blocks',
-            self.place_blocks_service_callback
+        self.place_block_service = self.create_service(
+            PlaceBlock,
+            '/mineros/interaction/place_block',
+            self.place_block_service_callback
+        )
+
+        self.craft_item_service = self.create_service(
+            Craft,
+            '/mineros/interaction/craft_item',
+            self.craft_item_service_callback
         )
 
         # Info publishers
@@ -118,16 +121,43 @@ class MinerosMain(Node):
             self.local_pose_timer_callback,
             callback_group=timers_cbg
         )
-        
-        # Write item by name to file
-        with open('docs/itemName2id.txt', 'w') as f:
-            f.write(str(self.bot.registry.itemsByName))
 
-    def mode_control_callback(self, request: SetMode.Request, response: SetMode.Response):
-        self.get_logger().info(f"Mode control: {request.custom_mode}")
-        self.mode = request.custom_mode
-        response.success = True
-        return response
+    # TODO
+    def find_y_callback(self, request: BlockInfo, response: BlockInfo):
+        """Returns the ground level y coordinate for a given x and z coordinate"""
+        self.get_logger().info("find_y_callback")
+        
+        response.block = BlockPose()
+        response.block.block_pose = Pose()
+        response.block.block_pose.position.x = request.block_pose.position.x
+        response.block.block_pose.position.z = request.block_pose.position.z
+        self.get_logger().info(f'find_y_callback: {request.block_pose.position.x}, {request.block_pose.position.z}')
+        
+        bot_position = self.bot.entity.position
+        block_at_bot_height = self.bot.blockAt(Vec3(request.block_pose.position.x, bot_position.y, request.block_pose.position.z))
+        
+        iteration = 1
+        if block_at_bot_height.type == 0:
+            iteration = -1
+
+        block = block_at_bot_height
+        while True:
+            self.get_logger().info(f'{block.type} , {block.name}, {block.position.y}, {iteration}')
+            previous_block = block
+            new_pose = Vec3(request.block_pose.position.x, previous_block.position.y + iteration, request.block_pose.position.z)
+            block = self.bot.blockAt(new_pose)
+            
+            # Iterated from dirt to sky
+            if block.type == 0 and previous_block.type != 0:
+                self.get_logger().info(f'Found y: {block.type}, {block.position.y}, {iteration}')
+                response.block.block_pose.position.y = float(previous_block.position.y)
+                return response
+            # from sky to dirt
+            elif block.type != 0 and previous_block.type == 0:
+                self.get_logger().info(f'Found y: {previous_block.type}, {previous_block.position.y}, {iteration}')
+                response.block.block_pose.position.y = float(block.position.y)
+                return response
+            
 
     def set_position_callback(self, msg: PoseStamped):
         self.bot.pathfinder.setGoal(None)
@@ -182,28 +212,22 @@ class MinerosMain(Node):
         response.blocks = pa
         return response
 
-    def mine_blocks_callback(self, request: MineBlocks.Request, response: MineBlocks.Response):
-        poses: List[Pose] = request.blocks.poses
+    def mine_block_callback(self, request: MineBlock.Request, response: MineBlock.Response):
+        pose: Pose = request.block
 
-        if len(poses) == 0:
+        vec = Vec3(pose.position.x, pose.position.y, pose.position.z)
+        block = self.bot.blockAt(vec)
+
+        if not self.bot.canDigBlock(block):
+            self.get_logger().info(f"Can't dig block: {vec}")
+            self.get_logger().info(f"Block: {block}")
             response.success = False
             return response
 
-        success = []
-        for pose in poses:
-            vec = Vec3(pose.position.x, pose.position.y, pose.position.z)
+        self.bot.collectBlock.collect(block)
+        self.get_logger().info(f"collected block: {vec}")
 
-            block = self.bot.blockAt(vec)
-            if not self.bot.canDigBlock(block):
-                self.get_logger().info(f"Can't dig block: {vec}")
-                success.append(False)
-
-            self.bot.collectBlock.collect(block)
-
-            self.get_logger().info(f"collected block: {vec}")
-            success.append(True)
-
-        response.success = success
+        response.success = True
         return response
 
     def inventory_contents_service_callback(self, request: Inventory.Request, response: Inventory.Response):
@@ -222,74 +246,85 @@ class MinerosMain(Node):
         response.inventory = inventory
         return response
 
-    def place_blocks_service_callback(self, request: PlaceBlocks.Request, response: PlaceBlocks.Response):
-        blocks: List[BlockPose] = request.blocks
+    def place_block_service_callback(self, request: PlaceBlock.Request, response: PlaceBlock.Response):
+        block: BlockPose = request.block
 
-        self.get_logger().info(f"Placing {len(blocks)} blocks")
+        self.get_logger().info(f"Placing {block} ")
 
-        if len(blocks) == 0:
-            response.success = [False for _ in range(len(blocks))]
+        item: Item = block.block
+        block_pose: Pose = block.block_pose
+        point: Point = block_pose.position
+        face_vector: Point = block.face_vector
+        point = Vec3(point.x, point.y, point.z)
+        face_vector = Vec3(face_vector.x, face_vector.y, face_vector.z)
+
+        self.get_logger().info(
+            f"Placing block: {item.id} at {point} with {face_vector}")
+        block = self.bot.blockAt(point)
+
+        if block.name == 'air':
+            self.get_logger().info(f"Can't place block on air")
+            response.success = False
             return response
 
-        response.success = []
-        for block in blocks:
-            item: Item = block.block
-            point: Point = block.point
-            face_vector: Point = block.face_vector
-            point = Vec3(point.x, point.y, point.z)
-            face_vector = Vec3(face_vector.x, face_vector.y, face_vector.z)
-            
-            self.get_logger().info(f"Placing block: {item.id} at {point} with {face_vector}")
-
-            block = self.bot.blockAt(point)
-
-            if block.name == 'air':
-                self.get_logger().info(f"Can't place block on air")
-                response.success.append(False)
-                continue
-
-            # Get to block
-            self.bot.pathfinder.setGoal(None)
-            # goal = pathfinder.goals.GoalGetToBlock(point.x - 1, point.y, point.z)
-            goal = pathfinder.goals.GoalPlaceBlock(block.position.plus(face_vector), self.bot.world, {'range':5, 'half': 'top'})
-            self.bot.pathfinder.setGoal(goal)
-
-            while self.bot.pathfinder.isMoving():
-                time.sleep(0.5)
-
-            # Bad hack to get the item object TODO: Fix this, if problem
-            items = self.bot.inventory.items()
-            item = list(filter(lambda i: i.type == item.id, items))[0]
-
-            self.bot.equip(item, 'hand')
-
-
-            # THIS IS VERY WEIRD BUT GOD KNOWS HOW THIS SHITTY JAVASCRIPT GARBAGE WORKS
-            # WHAT THE FUCK
-            
-            # It seems that the problem has to do with timing, hence the 1 second sleep
-            # the nested try catch is in case the 1 second sleep is too short, the try catch
-            # works because whenever it fails it incours a 5 second timeout this shitty structure 
-            # causes the 
+        # Get to block
+        self.bot.pathfinder.setGoal(None)
+        # goal = pathfinder.goals.GoalGetToBlock(point.x - 1, point.y, point.z)
+        goal = pathfinder.goals.GoalPlaceBlock(block.position.plus(
+            face_vector), self.bot.world, {'range': 5, 'half': 'top'})
+        self.bot.pathfinder.setGoal(goal)
+        while self.bot.pathfinder.isMoving():
+            time.sleep(0.5)
+        # Bad hack to get the item object TODO: Fix this, if problem
+        items = self.bot.inventory.items()
+        item = list(filter(lambda i: i.type == item.id, items))[0]
+        self.bot.equip(item, 'hand')
+        # THIS IS VERY WEIRD BUT GOD KNOWS HOW THIS SHITTY JAVASCRIPT GARBAGE WORKS
+        # WHAT THE FUCK
+        # It seems that the problem has to do with timing, hence the 1 second sleep
+        # the nested try catch is in case the 1 second sleep is too short, the try catch
+        # works because whenever it fails it incours a 5 second timeout this shitty structure
+        # causes the
+        try:
+            time.sleep(1)
+            self.bot.placeBlock(block, face_vector)
+            response.success = True
+        except Exception as e:
+            self.get_logger().info(f"Failed to place block on first try. retrying")
             try:
-                time.sleep(1)
                 self.bot.placeBlock(block, face_vector)
-                response.success.append(True)
+                response.success = True
             except Exception as e:
-                self.get_logger().info(f"Failed to place block on first try. retrying")
-                try:
-                    self.bot.placeBlock(block, face_vector)
-                    response.success.append(True)
-                except Exception as e:
-                    self.get_logger().info(f'{e}')
-                    response.success.append(False)
-            
-            
+                self.get_logger().info(f'{e}')
+                response.success = False
 
         return response
-    
-    
-    
+
+    def craft_item_service_callback(self, request: Craft.Request, response: Craft.Response):
+        item = request.item
+
+        if request.crafting_table:
+            crafting_table = self.bot.blockAt(Vec3(
+                request.crafting_table_location.x, request.crafting_table_location.y, request.crafting_table_location.z))
+        else:
+            crafting_table = None  # None is an alias for the player's inventory
+
+        recipe = self.bot.recipesFor(item.id, None, item.count, crafting_table)
+
+        if len(recipe) == 0:
+            self.get_logger().info(f"Can't craft item: {item.id}")
+            response.success = False
+            return response
+
+        self.bot.craft(recipe[0], item.count, crafting_table)
+        self.get_logger().info(f"Crafted item: {item.id}")
+        response.success = True
+
+        return response
+
+    # TODO use stove
+
+    # TODO kill or avoid mobs
 
     def local_pose_timer_callback(self):
         bot_position = self.bot.entity.position

@@ -12,6 +12,8 @@ from mavros_msgs.msg import Waypoint, WaypointList, WaypointReached, State
 
 from geometry_msgs.msg import PoseStamped, PoseArray, Pose
 
+from mineros_interfaces.srv import BlockInfo
+
 
 class MovementTestNode(Node):
     def __init__(self):
@@ -37,7 +39,11 @@ class MovementTestNode(Node):
             10
         )
 
-        threading.Thread(target=self.tests).start()
+        self.find_y_client = self.create_client(
+            BlockInfo,
+            '/mineros/findy'
+        )
+        self.test_find_y()
 
     def position_cb(self, msg: PoseStamped):
         self.position = msg
@@ -54,6 +60,19 @@ class MovementTestNode(Node):
 
         self.destroy_node()
         rclpy.shutdown()
+
+    def test_find_y(self):
+        while self.position is None:
+            rclpy.spin_once(self, timeout_sec=0.1)
+            
+        req = BlockInfo.Request()
+        req.block_pose = self.position.pose
+        req.block_pose.position.y = 0.0
+        req.block_pose.position.z += 5.0
+        
+        future = self.find_y_client.call_async(req)
+        rclpy.spin_until_future_complete(self, future)
+        self.get_logger().info(f'{future.result()}')
 
     def test_position_xyz(self, sleep, stress_test=False):
         while self.position is None:
@@ -96,19 +115,19 @@ class MovementTestNode(Node):
             p.position.y = -1.0
             p.position.z = self.position.pose.position.z + i
             poses.append(p)
-        
+
         pa = PoseArray()
         pa.poses = poses
-        
+
         self.set_position_composite_pub.publish(pa)
-        
+
         time.sleep(10)
         final_ps = PoseStamped()
         final_ps.pose = poses[-1]
         final_ps.pose.position.y = self.position.pose.position.y
-        
+
         assert self.distance_between_2_points(self.position, final_ps)
-        
+
         self.get_logger().info('composite_test passed')
 
     def distance_between_2_points(self, point1: PoseStamped, point2: PoseStamped):

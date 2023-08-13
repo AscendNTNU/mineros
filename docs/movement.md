@@ -6,6 +6,9 @@ To move to one position publish a `geometry_msgs/PoseStamped` message to the top
 
 To move to multiple positions after eachother publish a `geometry_msgs/PoseArray` message to the topic `/mineros/set_position/composite`. This will cause to bot to move to the specified positions in order.
 
+# Find y corrdinate of ground floor for a position given x and z
+call `/mineros/findy` service with `mineros_interfaces/BlockInfo` message with the x and z coordinates set. The service will return a `geometry_msgs/Pose` message with all cordinates of the ground floor of the x and z position
+
 # Dimensions of motion
 
 ## 3d
