@@ -272,28 +272,30 @@ class MinerosMain(Node):
         goal = pathfinder.goals.GoalPlaceBlock(block.position.plus(
             face_vector), self.bot.world, {'range': 5, 'half': 'top'})
         self.bot.pathfinder.setGoal(goal)
-        time.sleep(0.1)
+        
+        rclpy.spin_once(self, timeout_sec=0.1)
         while self.bot.pathfinder.isMoving():
             rclpy.spin_once(self, timeout_sec=0.1)
             
         items = self.bot.inventory.items()
         item = list(filter(lambda i: i.type == item.id, items))[0]
         self.bot.equip(item, 'hand')
-    
-        try:
-            time.sleep(1)
-            self.bot.placeBlock(block, face_vector)
-            response.success = True
-        except Exception as e:
-            self.get_logger().info(f"Failed to place block on first try. retrying")
+
+        placed = False
+        while not placed:
             try:
+                rclpy.spin_once(self, timeout_sec=2)
                 self.bot.placeBlock(block, face_vector)
+                placed = True
                 response.success = True
             except Exception as e:
-                self.get_logger().info(f'{e}')
-                response.success = False
-
-        return response
+                
+                self.get_logger().info(f"{e}")
+                
+            
+        self.get_logger().info(f"Placed block: {item.id} at {point} with {face_vector}")
+        
+        response.success = True
 
     def craft_item_service_callback(self, request: Craft.Request, response: Craft.Response):
         item = request.item

@@ -58,10 +58,11 @@ class MiningTestNode(Node):
         self.position = msg
 
     def tests(self):
-        self.test_find_grass()
         self.test_mine_block()
-        self.test_inventory()
+        
+        self.test_find_grass()
         self.test_place_block() # WARNING: This test is broken
+        self.test_inventory()
         self.test_craft_crafting_table()
 
         self.destroy_node()
@@ -100,6 +101,7 @@ class MiningTestNode(Node):
         self.get_logger().info('Mine block test passed')
 
     def find_blocks(self, blockid: int, count: int) -> List[Pose]:
+        self.get_logger().info('Find blocks')
         block_search = FindBlocks.Request()
         block_search.blockid = blockid
         block_search.count = count
@@ -139,7 +141,7 @@ class MiningTestNode(Node):
 
         request = PlaceBlock.Request()
         point = copy.deepcopy(self.position.pose.position)
-        point.x += 10
+        point.x += 2.0
         point = self.find_y(point).position
         item = Item()
         item.id = 15
@@ -179,7 +181,7 @@ class MiningTestNode(Node):
     # TODO: figure out the id for the wood block
     def test_craft_crafting_table(self):
         self.get_logger().info('Crafting test started')
-        blocks = self.find_blocks(47,4)
+        blocks = self.find_blocks(8,4)
         self.get_logger().info(f'Found {len(blocks)} blocks')
         for block in blocks:
             self.mine_block(block)
