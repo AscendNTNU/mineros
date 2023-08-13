@@ -122,7 +122,6 @@ class MinerosMain(Node):
             callback_group=timers_cbg
         )
 
-    # TODO
     def find_y_callback(self, request: BlockInfo, response: BlockInfo):
         """Returns the ground level y coordinate for a given x and z coordinate"""
         self.get_logger().info("find_y_callback")
@@ -218,13 +217,13 @@ class MinerosMain(Node):
         vec = Vec3(pose.position.x, pose.position.y, pose.position.z)
         block = self.bot.blockAt(vec)
 
-        if not self.bot.canDigBlock(block):
-            self.get_logger().info(f"Can't dig block: {vec}")
-            self.get_logger().info(f"Block: {block}")
-            response.success = False
-            return response
+        # if not self.bot.canDigBlock(block):
+        #     self.get_logger().info(f"Can't dig block: {vec}")
+        #     self.get_logger().info(f"Block: {block}")
+        #     response.success = False
+        #     return response
 
-        self.bot.collectBlock.collect(block)
+        self.bot.collectBlock.collect(block, timeout=10)
         self.get_logger().info(f"collected block: {vec}")
 
         response.success = True
@@ -269,22 +268,18 @@ class MinerosMain(Node):
 
         # Get to block
         self.bot.pathfinder.setGoal(None)
-        # goal = pathfinder.goals.GoalGetToBlock(point.x - 1, point.y, point.z)
+        
         goal = pathfinder.goals.GoalPlaceBlock(block.position.plus(
             face_vector), self.bot.world, {'range': 5, 'half': 'top'})
         self.bot.pathfinder.setGoal(goal)
+        time.sleep(0.1)
         while self.bot.pathfinder.isMoving():
-            time.sleep(0.5)
-        # Bad hack to get the item object TODO: Fix this, if problem
+            rclpy.spin_once(self, timeout_sec=0.1)
+            
         items = self.bot.inventory.items()
         item = list(filter(lambda i: i.type == item.id, items))[0]
         self.bot.equip(item, 'hand')
-        # THIS IS VERY WEIRD BUT GOD KNOWS HOW THIS SHITTY JAVASCRIPT GARBAGE WORKS
-        # WHAT THE FUCK
-        # It seems that the problem has to do with timing, hence the 1 second sleep
-        # the nested try catch is in case the 1 second sleep is too short, the try catch
-        # works because whenever it fails it incours a 5 second timeout this shitty structure
-        # causes the
+    
         try:
             time.sleep(1)
             self.bot.placeBlock(block, face_vector)

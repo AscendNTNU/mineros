@@ -1,16 +1,17 @@
 # Tests require running mineros and minecraft
+import copy
 import math
 import threading
-import copy
-import rclpy
-from rclpy.node import Node
-from javascript import require, On, Once, AsyncTask, once, off
 from typing import List, Tuple
 
+import rclpy
+from geometry_msgs.msg import Point, Pose, PoseStamped
+from javascript import AsyncTask, On, Once, off, once, require
+from rclpy.node import Node
 
-from geometry_msgs.msg import PoseStamped, Point, Pose
-from mineros_interfaces.srv import FindBlocks, MineBlock, Inventory, PlaceBlock, Craft
-from mineros_interfaces.msg import Item, BlockPose
+from mineros_interfaces.msg import BlockPose, Item
+from mineros_interfaces.srv import (BlockInfo, Craft, FindBlocks, Inventory,
+                                    MineBlock, PlaceBlock)
 
 
 class MiningTestNode(Node):
@@ -45,6 +46,11 @@ class MiningTestNode(Node):
             PlaceBlock,
             '/mineros/interaction/place_block',
         )
+        
+        self.find_y_client = self.create_client(
+            BlockInfo,
+            '/mineros/findy'
+        )
 
         self.tests()
 
@@ -54,8 +60,8 @@ class MiningTestNode(Node):
     def tests(self):
         self.test_find_grass()
         self.test_mine_block()
-        item = self.test_inventory()
-        # self.test_place_block(item) # WARNING: This test is broken
+        self.test_inventory()
+        self.test_place_block() # WARNING: This test is broken
         self.test_craft_crafting_table()
 
         self.destroy_node()
@@ -80,7 +86,7 @@ class MiningTestNode(Node):
         self.get_logger().info(
             f'Found {len(blocks.blocks.poses)} grass blocks')
 
-    def test_mine_block(self, blockid=8, count=1):
+    def test_mine_block(self, blockid=8, count=2):
         
         blocks = self.find_blocks(blockid, count)
 
@@ -126,20 +132,20 @@ class MiningTestNode(Node):
         return inventory.inventory[0]
 
 
-    # TODO: Fix this test
-    def test_place_block(self, item: Item):
+    def test_place_block(self):
         while self.position is None:
             self.get_logger().info('Waiting for position')
             rclpy.spin_once(self)
 
         request = PlaceBlock.Request()
         point = copy.deepcopy(self.position.pose.position)
-        point.x -= 10
-        point.y -= 1
-
-        point.x = float(math.ceil(point.x))
-        point.z = float(math.ceil(point.z))
-
+        point.x += 10
+        point = self.find_y(point).position
+        item = Item()
+        item.id = 15
+        item.count = 1
+        
+        
         blockpose = BlockPose()
         blockpose.block = item
         blockpose.block_pose = Pose()
@@ -159,6 +165,16 @@ class MiningTestNode(Node):
 
         assert success.success
         self.get_logger().info('Place block test passed')
+        
+    def find_y(self, position: Point) -> Pose:
+        req = BlockInfo.Request()
+        req.block_pose = Pose()
+        req.block_pose.position = position
+        
+        future = self.find_y_client.call_async(req)
+        rclpy.spin_until_future_complete(self, future)
+        block = future.result()
+        return block.block.block_pose
 
     # TODO: figure out the id for the wood block
     def test_craft_crafting_table(self):
