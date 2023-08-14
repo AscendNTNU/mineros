@@ -20,7 +20,8 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'mineros = mineros.main:main'
+            'mineros_main = mineros.main:main',
+            'info_bot = mineros.info_bot:main'
         ]
     },
 )

@@ -1,3 +1,4 @@
+import threading
 import time
 from threading import Thread
 from javascript import require, On, Once, AsyncTask, once, off
@@ -7,7 +8,7 @@ import rclpy
 from rclpy.node import Node
 from rclpy.callback_groups import ReentrantCallbackGroup
 
-
+from std_srvs.srv import Trigger
 from geometry_msgs.msg import PoseStamped, PoseArray, Pose, Point
 from mineros_interfaces.srv import FindBlocks, MineBlock, Inventory, PlaceBlock, Craft, BlockInfo
 from mineros_interfaces.msg import Item, BlockPose
@@ -26,7 +27,7 @@ class MinerosMain(Node):
 
         # Params
         self.declare_parameter('goal_acceptance', 1)
-        self.declare_parameter('bot_username', 'MinerosBotTest')
+        self.declare_parameter('bot_username', 'MinerosBot')
         self.declare_parameter('lan_port', 25565)
 
         BOT_USERNAME = self.get_parameter(
@@ -56,7 +57,7 @@ class MinerosMain(Node):
 
         timers_cbg = ReentrantCallbackGroup()
 
-        #Movement control
+        # Movement control
         self.find_y_service = self.create_service(
             BlockInfo,
             '/mineros/findy',
@@ -100,7 +101,7 @@ class MinerosMain(Node):
         self.place_block_service = self.create_service(
             PlaceBlock,
             '/mineros/interaction/place_block',
-            self.place_block_service_callback
+            self.place_block_callback,
         )
 
         self.craft_item_service = self.create_service(
@@ -116,47 +117,62 @@ class MinerosMain(Node):
             10
         )
 
-        self.local_pose_timer = self.create_timer(
+        self.pose_timer = self.create_timer(
             0.1,
             self.local_pose_timer_callback,
             callback_group=timers_cbg
         )
 
+        # set up
+        # self.main_bot_spawned_service = self.create_client(
+        #     Trigger,
+        #     '/mineros/info/main_bot_spawned',
+        # )
+
+        # self.main_bot_spawned_service.wait_for_service()
+        # self.main_bot_spawned_service.call_async(Trigger.Request())
+
     def find_y_callback(self, request: BlockInfo, response: BlockInfo):
         """Returns the ground level y coordinate for a given x and z coordinate"""
         self.get_logger().info("find_y_callback")
-        
+
         response.block = BlockPose()
         response.block.block_pose = Pose()
         response.block.block_pose.position.x = request.block_pose.position.x
         response.block.block_pose.position.z = request.block_pose.position.z
-        self.get_logger().info(f'find_y_callback: {request.block_pose.position.x}, {request.block_pose.position.z}')
-        
+        self.get_logger().info(
+            f'find_y_callback: {request.block_pose.position.x}, {request.block_pose.position.z}')
+
         bot_position = self.bot.entity.position
-        block_at_bot_height = self.bot.blockAt(Vec3(request.block_pose.position.x, bot_position.y, request.block_pose.position.z))
-        
+        block_at_bot_height = self.bot.blockAt(Vec3(
+            request.block_pose.position.x, bot_position.y, request.block_pose.position.z))
+
         iteration = 1
         if block_at_bot_height.type == 0:
             iteration = -1
 
         block = block_at_bot_height
         while True:
-            self.get_logger().info(f'{block.type} , {block.name}, {block.position.y}, {iteration}')
+            self.get_logger().info(
+                f'{block.type} , {block.name}, {block.position.y}, {iteration}')
             previous_block = block
-            new_pose = Vec3(request.block_pose.position.x, previous_block.position.y + iteration, request.block_pose.position.z)
+            new_pose = Vec3(request.block_pose.position.x,
+                            previous_block.position.y + iteration, request.block_pose.position.z)
             block = self.bot.blockAt(new_pose)
-            
+
             # Iterated from dirt to sky
             if block.type == 0 and previous_block.type != 0:
-                self.get_logger().info(f'Found y: {block.type}, {block.position.y}, {iteration}')
-                response.block.block_pose.position.y = float(previous_block.position.y)
+                self.get_logger().info(
+                    f'Found y: {block.type}, {block.position.y}, {iteration}')
+                response.block.block_pose.position.y = float(
+                    previous_block.position.y)
                 return response
             # from sky to dirt
             elif block.type != 0 and previous_block.type == 0:
-                self.get_logger().info(f'Found y: {previous_block.type}, {previous_block.position.y}, {iteration}')
+                self.get_logger().info(
+                    f'Found y: {previous_block.type}, {previous_block.position.y}, {iteration}')
                 response.block.block_pose.position.y = float(block.position.y)
                 return response
-            
 
     def set_position_callback(self, msg: PoseStamped):
         self.bot.pathfinder.setGoal(None)
@@ -245,9 +261,19 @@ class MinerosMain(Node):
         response.inventory = inventory
         return response
 
-    def place_block_service_callback(self, request: PlaceBlock.Request, response: PlaceBlock.Response):
-        block: BlockPose = request.block
+    def place_block_callback(self, request: PlaceBlock.Request, response: PlaceBlock.Response):
+        block = request.block
+        mc_block = self.bot.blockAt(Vec3(
+            block.block_pose.position.x, block.block_pose.position.y, block.block_pose.position.z))
+        if mc_block.name == 'air':
+            self.get_logger().info(f"Can't place block on air")
+            response.success = False
+            return response
+            
+        response.success = self.place_block(block)
+        return response
 
+    def place_block(self, block: BlockPose):
         self.get_logger().info(f"Placing {block} ")
 
         item: Item = block.block
@@ -256,46 +282,37 @@ class MinerosMain(Node):
         face_vector: Point = block.face_vector
         point = Vec3(point.x, point.y, point.z)
         face_vector = Vec3(face_vector.x, face_vector.y, face_vector.z)
-
+        
         self.get_logger().info(
             f"Placing block: {item.id} at {point} with {face_vector}")
         block = self.bot.blockAt(point)
-
-        if block.name == 'air':
-            self.get_logger().info(f"Can't place block on air")
-            response.success = False
-            return response
-
+        
         # Get to block
         self.bot.pathfinder.setGoal(None)
-        
+
         goal = pathfinder.goals.GoalPlaceBlock(block.position.plus(
             face_vector), self.bot.world, {'range': 5, 'half': 'top'})
         self.bot.pathfinder.setGoal(goal)
-        
-        rclpy.spin_once(self, timeout_sec=0.1)
-        while self.bot.pathfinder.isMoving():
-            rclpy.spin_once(self, timeout_sec=0.1)
-            
+      
         items = self.bot.inventory.items()
         item = list(filter(lambda i: i.type == item.id, items))[0]
         self.bot.equip(item, 'hand')
 
-        placed = False
-        while not placed:
+        c = 0
+        while 1:
             try:
-                rclpy.spin_once(self, timeout_sec=2)
+                time.sleep(1)
                 self.bot.placeBlock(block, face_vector)
-                placed = True
-                response.success = True
+                self.get_logger().info(
+                    f"Placed block: {item.id} at {point} with {face_vector}")
+
+                return True
             except Exception as e:
-                
+                time.sleep(1)
                 self.get_logger().info(f"{e}")
-                
-            
-        self.get_logger().info(f"Placed block: {item.id} at {point} with {face_vector}")
-        
-        response.success = True
+                c += 1
+                if c >= 10:
+                    return False
 
     def craft_item_service_callback(self, request: Craft.Request, response: Craft.Response):
         item = request.item
@@ -324,6 +341,7 @@ class MinerosMain(Node):
     # TODO kill or avoid mobs
 
     def local_pose_timer_callback(self):
+        self.get_logger().info("Publishing local pose")
         bot_position = self.bot.entity.position
         # self.get_logger().info(f"Bot position: {bot_position}")
 

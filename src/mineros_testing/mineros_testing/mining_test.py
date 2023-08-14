@@ -147,7 +147,6 @@ class MiningTestNode(Node):
         item.id = 15
         item.count = 1
         
-        
         blockpose = BlockPose()
         blockpose.block = item
         blockpose.block_pose = Pose()
@@ -158,14 +157,14 @@ class MiningTestNode(Node):
         blockpose.face_vector.z = 0.0
         self.get_logger().info(f'Placing block at {point}')
         self.get_logger().info(f'{blockpose}')
-
         request.block = blockpose
+        while not self.place_blocks_client.wait_for_service(timeout_sec=1.0):
+            self.get_logger().info('Waiting for service')
+        future = self.place_blocks_client.call_async(request)
+        rclpy.spin_until_future_complete(self, future)
+        assert future.result().success
 
-        fut = self.place_blocks_client.call_async(request)
-        rclpy.spin_until_future_complete(self, fut)
-        success = fut.result()
 
-        assert success.success
         self.get_logger().info('Place block test passed')
         
     def find_y(self, position: Point) -> Pose:
