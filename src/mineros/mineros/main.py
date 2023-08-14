@@ -106,7 +106,7 @@ class MinerosMain(Node):
 
         self.craft_item_service = self.create_service(
             Craft,
-            '/mineros/interaction/craft_item',
+            '/mineros/interaction/craft',
             self.craft_item_service_callback
         )
 
@@ -122,7 +122,11 @@ class MinerosMain(Node):
             self.local_pose_timer_callback,
             callback_group=timers_cbg
         )
-
+        
+        mc_data = require('minecraft-data')(self.bot.version)
+        items =  mc_data.items
+        with open('docs/items.txt', 'w') as outfile:
+            outfile.write(str(items))
         # set up
         # self.main_bot_spawned_service = self.create_client(
         #     Trigger,
@@ -238,8 +242,19 @@ class MinerosMain(Node):
         #     self.get_logger().info(f"Block: {block}")
         #     response.success = False
         #     return response
-
-        self.bot.collectBlock.collect(block, timeout=10)
+        try:
+            self.bot.collectBlock.collect(block, timeout=10)
+        except Exception as e:
+            response.success = False
+            return response
+            try:
+                self.get_logger().info(f"Error collecting block: {e}")
+                self.bot.collectBlock.collect(block, timeout=10)
+            except Exception as e:
+                self.get_logger().info(f"Error collecting block: {e}")
+                response.success = False
+                return response
+            
         self.get_logger().info(f"collected block: {vec}")
 
         response.success = True
@@ -269,7 +284,7 @@ class MinerosMain(Node):
             self.get_logger().info(f"Can't place block on air")
             response.success = False
             return response
-            
+
         response.success = self.place_block(block)
         return response
 
@@ -282,18 +297,18 @@ class MinerosMain(Node):
         face_vector: Point = block.face_vector
         point = Vec3(point.x, point.y, point.z)
         face_vector = Vec3(face_vector.x, face_vector.y, face_vector.z)
-        
+
         self.get_logger().info(
             f"Placing block: {item.id} at {point} with {face_vector}")
         block = self.bot.blockAt(point)
-        
+
         # Get to block
         self.bot.pathfinder.setGoal(None)
 
         goal = pathfinder.goals.GoalPlaceBlock(block.position.plus(
             face_vector), self.bot.world, {'range': 5, 'half': 'top'})
         self.bot.pathfinder.setGoal(goal)
-      
+
         items = self.bot.inventory.items()
         item = list(filter(lambda i: i.type == item.id, items))[0]
         self.bot.equip(item, 'hand')
@@ -316,6 +331,7 @@ class MinerosMain(Node):
 
     def craft_item_service_callback(self, request: Craft.Request, response: Craft.Response):
         item = request.item
+        self.get_logger().info(f"Crafting item: {item.id}")
 
         if request.crafting_table:
             crafting_table = self.bot.blockAt(Vec3(
@@ -323,8 +339,9 @@ class MinerosMain(Node):
         else:
             crafting_table = None  # None is an alias for the player's inventory
 
-        recipe = self.bot.recipesFor(item.id, None, item.count, crafting_table)
+        recipe = list(self.bot.recipesFor(item.id, None, None, crafting_table))
 
+        self.get_logger().info(f"Recipe: {recipe}")
         if len(recipe) == 0:
             self.get_logger().info(f"Can't craft item: {item.id}")
             response.success = False
@@ -341,9 +358,12 @@ class MinerosMain(Node):
     # TODO kill or avoid mobs
 
     def local_pose_timer_callback(self):
-        self.get_logger().info("Publishing local pose")
-        bot_position = self.bot.entity.position
-        # self.get_logger().info(f"Bot position: {bot_position}")
+        try:
+            self.get_logger().info("Publishing local pose")
+            bot_position = self.bot.entity.position
+        except Exception as e:
+            self.get_logger().info(f"Error getting bot position: {e}")
+            return
 
         pose = PoseStamped()
         pose.pose.position.x = float(bot_position.x)

@@ -46,10 +46,15 @@ class MiningTestNode(Node):
             PlaceBlock,
             '/mineros/interaction/place_block',
         )
-        
+
         self.find_y_client = self.create_client(
             BlockInfo,
             '/mineros/findy'
+        )
+        
+        self.craft_client = self.create_client(
+            Craft,
+            '/mineros/interaction/craft'
         )
 
         self.tests()
@@ -59,9 +64,9 @@ class MiningTestNode(Node):
 
     def tests(self):
         self.test_mine_block()
-        
+
         self.test_find_grass()
-        self.test_place_block() # WARNING: This test is broken
+        self.test_place_block()  # WARNING: This test is broken
         self.test_inventory()
         self.test_craft_crafting_table()
 
@@ -88,7 +93,7 @@ class MiningTestNode(Node):
             f'Found {len(blocks.blocks.poses)} grass blocks')
 
     def test_mine_block(self, blockid=8, count=2):
-        
+
         blocks = self.find_blocks(blockid, count)
 
         self.get_logger().info('Mine block test started')
@@ -105,14 +110,14 @@ class MiningTestNode(Node):
         block_search = FindBlocks.Request()
         block_search.blockid = blockid
         block_search.count = count
-        
+
         while not self.find_block_client.wait_for_service(timeout_sec=1.0):
             self.get_logger().info('Waiting for service')
         future = self.find_block_client.call_async(block_search)
         rclpy.spin_until_future_complete(self, future)
         blocks = future.result()
         return blocks.blocks.poses
-    
+
     def mine_block(self, block: Pose) -> bool:
         req = MineBlock.Request()
         req.block = block
@@ -133,8 +138,7 @@ class MiningTestNode(Node):
         self.get_logger().info('Inventory test passed')
         return inventory.inventory[0]
 
-
-    def test_place_block(self):
+    def test_place_block(self, blockid=15):
         while self.position is None:
             self.get_logger().info('Waiting for position')
             rclpy.spin_once(self)
@@ -144,9 +148,9 @@ class MiningTestNode(Node):
         point.x += 2.0
         point = self.find_y(point).position
         item = Item()
-        item.id = 15
+        item.id = blockid
         item.count = 1
-        
+
         blockpose = BlockPose()
         blockpose.block = item
         blockpose.block_pose = Pose()
@@ -164,14 +168,14 @@ class MiningTestNode(Node):
         rclpy.spin_until_future_complete(self, future)
         assert future.result().success
 
-
         self.get_logger().info('Place block test passed')
-        
+    
+
     def find_y(self, position: Point) -> Pose:
         req = BlockInfo.Request()
         req.block_pose = Pose()
         req.block_pose.position = position
-        
+
         future = self.find_y_client.call_async(req)
         rclpy.spin_until_future_complete(self, future)
         block = future.result()
@@ -180,11 +184,41 @@ class MiningTestNode(Node):
     # TODO: figure out the id for the wood block
     def test_craft_crafting_table(self):
         self.get_logger().info('Crafting test started')
-        blocks = self.find_blocks(8,4)
-        self.get_logger().info(f'Found {len(blocks)} blocks')
-        for block in blocks:
-            self.mine_block(block)
+        # blocks = self.find_blocks(46, 4)
+        # self.get_logger().info(f'Found {len(blocks)} blocks')
+        # for block in blocks:
+        #     self.mine_block(block)
+        
         crafting_req = Craft.Request()
+        item = Item()
+        item.id = 23
+        item.count = 4
+        
+        crafting_req.item = item
+        crafting_req.crafting_table = False
+        
+        while not self.craft_client.wait_for_service(timeout_sec=1.0):
+            self.get_logger().info('Waiting for service')
+        future = self.craft_client.call_async(crafting_req)
+        rclpy.spin_until_future_complete(self, future)
+        assert future.result().success
+        
+            
+        crafting_req = Craft.Request()
+        item = Item()
+        item.id = 278
+        item.count = 1
+        
+        crafting_req.item = item
+        crafting_req.crafting_table = False
+        
+        while not self.craft_client.wait_for_service(timeout_sec=1.0):
+            self.get_logger().info('Waiting for service')
+        future = self.craft_client.call_async(crafting_req)
+        rclpy.spin_until_future_complete(self, future)
+        assert future.result().success
+        
+        self.test_place_block(278)
         
         
 
