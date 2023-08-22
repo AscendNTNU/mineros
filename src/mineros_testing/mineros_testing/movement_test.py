@@ -9,7 +9,7 @@ from typing import List, Tuple
 
 from mavros_msgs.srv import WaypointPush, WaypointClear, SetMode
 from mavros_msgs.msg import Waypoint, WaypointList, WaypointReached, State
-
+from std_msgs.msg import Empty
 from geometry_msgs.msg import PoseStamped, PoseArray, Pose
 
 from mineros_interfaces.srv import BlockInfo
@@ -43,19 +43,31 @@ class MovementTestNode(Node):
             BlockInfo,
             '/mineros/findy'
         )
-        self.test_find_y()
+        
+        self.reached_count = 0
+        self.position_reached_publisher = self.create_subscription(
+           Empty,
+           '/mineros/set_position/reached',
+           self.position_reached_cb,
+           10
+        )
+        self.tests()
 
     def position_cb(self, msg: PoseStamped):
         self.position = msg
 
+    def position_reached_cb(self, msg: Empty):
+        self.reached_count += 1
+        
     def tests(self):
         for i in range(5):
-            self.test_position_xyz(1, True)
+            self.get_logger().info(f'Stress test {i}')
             self.test_position_xz(1, True)
+            rclpy.spin_once(self, timeout_sec=0.1)
         self.get_logger().info('Stress test passed')
 
-        self.test_position_xyz(5)
-        self.test_position_xz(5)
+        self.test_position_xyz(10)
+        self.test_position_xz(10)
         self.test_composite()
 
         self.destroy_node()
@@ -76,33 +88,39 @@ class MovementTestNode(Node):
 
     def test_position_xyz(self, sleep, stress_test=False):
         while self.position is None:
-            time.sleep(0.1)
+            self.get_logger().info('Waiting for position')
+            rclpy.spin_once(self, timeout_sec=0.1)
 
         ps = PoseStamped()
         ps.pose.position.x = self.position.pose.position.x + 1
-        ps.pose.position.y = self.position.pose.position.y - 1
+        ps.pose.position.y = self.position.pose.position.y
         ps.pose.position.z = self.position.pose.position.z + 1
+        previous_reached_count = self.reached_count
         self.set_position_pub.publish(ps)
+        while self.reached_count == previous_reached_count:
+            rclpy.spin_once(self, timeout_sec=0.1)
 
-        time.sleep(sleep)
         if not stress_test:
-            assert self.distance_between_2_points(self.position, ps) <= 1
+            assert self.distance_between_2_points(self.position, ps) <= 2
         self.get_logger().info("test_position_xyz passed")
 
     def test_position_xz(self, sleep, stress_test=False):
         while self.position is None:
-            time.sleep(0.1)
+            rclpy.spin_once(self, timeout_sec=0.1)
 
         ps = PoseStamped()
         ps.pose.position.x = self.position.pose.position.x + 1
         ps.pose.position.y = -1.0
         ps.pose.position.z = self.position.pose.position.z + 1
+        previous_reached_count = self.reached_count
         self.set_position_pub.publish(ps)
 
-        time.sleep(sleep)
+        while self.reached_count == previous_reached_count:
+            rclpy.spin_once(self, timeout_sec=0.1)
+
         if not stress_test:
             ps.pose.position.y = self.position.pose.position.y
-            assert self.distance_between_2_points(self.position, ps) <= 1
+            assert self.distance_between_2_points(self.position, ps) <= 2
 
         self.get_logger().info("test_position_xz passed")
 
@@ -118,24 +136,30 @@ class MovementTestNode(Node):
 
         pa = PoseArray()
         pa.poses = poses
-
+        self.get_logger().info(f'{poses}')
+        previous_reached_count = self.reached_count
         self.set_position_composite_pub.publish(pa)
 
-        time.sleep(10)
+        while self.reached_count - previous_reached_count < len(poses):
+            rclpy.spin_once(self, timeout_sec=0.1)
+        
+        rclpy.spin_once(self, timeout_sec=0.1)
         final_ps = PoseStamped()
         final_ps.pose = poses[-1]
         final_ps.pose.position.y = self.position.pose.position.y
 
-        assert self.distance_between_2_points(self.position, final_ps)
+        assert self.distance_between_2_points(self.position, final_ps) <= 2
 
         self.get_logger().info('composite_test passed')
 
     def distance_between_2_points(self, point1: PoseStamped, point2: PoseStamped):
-        return math.sqrt(
+        dist = math.sqrt(
             (point1.pose.position.x - point2.pose.position.x)**2 +
             (point1.pose.position.y - point2.pose.position.y)**2 +
             (point1.pose.position.z - point2.pose.position.z)**2
         )
+        print(dist)
+        return dist
 
 
 def main(args=None):

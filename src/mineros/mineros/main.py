@@ -1,3 +1,4 @@
+import math
 import threading
 import time
 from threading import Thread
@@ -8,7 +9,7 @@ import rclpy
 from rclpy.node import Node
 from rclpy.callback_groups import ReentrantCallbackGroup
 
-from std_srvs.srv import Trigger
+from std_msgs.msg import Empty
 from geometry_msgs.msg import PoseStamped, PoseArray, Pose, Point
 from mineros_interfaces.srv import FindBlocks, MineBlock, Inventory, PlaceBlock, Craft, BlockInfo
 from mineros_interfaces.msg import Item, BlockPose
@@ -19,41 +20,59 @@ toolPlugin = require('mineflayer-tool').plugin
 collectBlock = require('mineflayer-collectblock').plugin
 Vec3 = require('vec3').Vec3
 
+bot = mineflayer.createBot(
+    {'host': 'localhost', 'port': 25565, 'username': 'MinerosBot', 'hideErrors': False})
+bot.loadPlugin(pathfinder.pathfinder)
+bot.loadPlugin(toolPlugin)
+bot.loadPlugin(collectBlock)
+
+# The spawn event
+once(bot, 'login')
+bot.chat('I spawned')
+
+# Instantiating pathfinding
+movements = pathfinder.Movements(bot)
+bot.pathfinder.setMovements(movements)
+
+# Events
+goal_reached = False
+
+
+@On(bot, 'goal_reached')
+def on_goal_reached(_, goal):
+    print(f'Goal reached')
+    global goal_reached
+    goal_reached = True
+    bot.chat('I reached the goal')
+
+
+digging_completed = False
+
+
+@On(bot, 'diggingCompleted')
+def on_digging_completed(_, block):
+    global digging_completed
+    print('Digging completed')
+    digging_completed = True
+    bot.chat('I finished digging')
+
 
 class MinerosMain(Node):
     def __init__(self):
         super().__init__('mineros_main_node')
         self.get_logger().info("Hello World!")
 
-        # Params
-        self.declare_parameter('goal_acceptance', 1)
-        self.declare_parameter('bot_username', 'MinerosBot')
-        self.declare_parameter('lan_port', 25565)
+        self.declare_parameter('goal_acceptance', 1.0)
+        self.declare_parameter('goal_timeout', 30)
+        self.declare_parameter('digging_timeout', 10)
 
-        BOT_USERNAME = self.get_parameter(
-            'bot_username').get_parameter_value().string_value
-        LAN_PORT = self.get_parameter(
-            'lan_port').get_parameter_value().integer_value
-        self.goal_acceptance = self.get_parameter(
-            'goal_acceptance').get_parameter_value().double_value
-
-        self.bot = mineflayer.createBot(
-            {'host': 'localhost', 'port': LAN_PORT, 'username': BOT_USERNAME, 'hideErrors': False})
-        self.bot.loadPlugin(pathfinder.pathfinder)
-        self.bot.loadPlugin(toolPlugin)
-        self.bot.loadPlugin(collectBlock)
-
-        # The spawn event
-        once(self.bot, 'login')
-        self.bot.chat('I spawned')
-
-        # Instantiating pathfinding
-        self.movements = pathfinder.Movements(self.bot)
-        self.bot.pathfinder.setMovements(self.movements)
+        self.goal_acceptance = self.get_parameter('goal_acceptance').value
+        self.goal_timeout = self.get_parameter('goal_timeout').value
+        self.digging_timeout = self.get_parameter('digging_timeout').value
 
         self.mission = []
         self.mission_thread = None
-        self.current_position = self.bot.entity.position
+        self.current_position = bot.entity.position
 
         timers_cbg = ReentrantCallbackGroup()
 
@@ -75,6 +94,12 @@ class MinerosMain(Node):
             PoseArray,
             '/mineros/set_position/composite',
             self.set_position_composite_callback,
+            10
+        )
+
+        self.position_reached_publisher = self.create_publisher(
+            Empty,
+            '/mineros/set_position/reached',
             10
         )
 
@@ -122,19 +147,42 @@ class MinerosMain(Node):
             self.local_pose_timer_callback,
             callback_group=timers_cbg
         )
-        
-        mc_data = require('minecraft-data')(self.bot.version)
-        items =  mc_data.items
+
+        # Write the items to text file for documentation
+        mc_data = require('minecraft-data')(bot.version)
+        items = mc_data.items
         with open('docs/items.txt', 'w') as outfile:
             outfile.write(str(items))
-        # set up
-        # self.main_bot_spawned_service = self.create_client(
-        #     Trigger,
-        #     '/mineros/info/main_bot_spawned',
-        # )
 
-        # self.main_bot_spawned_service.wait_for_service()
-        # self.main_bot_spawned_service.call_async(Trigger.Request())
+    def spin_for_goal(self):
+        global goal_reached
+        start = time.time()
+        while not goal_reached:
+            time.sleep(0.1)
+            if time.time() - start > self.goal_timeout:
+                self.get_logger().info("Goal timeout")
+                return
+        goal_reached = False
+
+    def spin_for_digging(self):
+        global digging_completed
+        start = time.time()
+
+        while not digging_completed:
+            time.sleep(0.1)
+            if time.time() - start > self.digging_timeout:
+                self.get_logger().info("Digging timeout")
+                return
+        digging_completed = False
+
+    def calculate_wait_time(self, target: Vec3):
+        """Calculates the time it takes to get to a target position on average"""
+        current_position = bot.entity.position
+        distance = math.sqrt((target.x - current_position.x)**2 + (target.y -
+                             current_position.y)**2 + (target.z - current_position.z)**2)
+
+        self.get_logger().info(f"time: {distance/5}")
+        return distance / 5  # Steves average speed is 5.6 blocks per second, 5 is a safe bet
 
     def find_y_callback(self, request: BlockInfo, response: BlockInfo):
         """Returns the ground level y coordinate for a given x and z coordinate"""
@@ -147,8 +195,8 @@ class MinerosMain(Node):
         self.get_logger().info(
             f'find_y_callback: {request.block_pose.position.x}, {request.block_pose.position.z}')
 
-        bot_position = self.bot.entity.position
-        block_at_bot_height = self.bot.blockAt(Vec3(
+        bot_position = bot.entity.position
+        block_at_bot_height = bot.blockAt(Vec3(
             request.block_pose.position.x, bot_position.y, request.block_pose.position.z))
 
         iteration = 1
@@ -162,7 +210,7 @@ class MinerosMain(Node):
             previous_block = block
             new_pose = Vec3(request.block_pose.position.x,
                             previous_block.position.y + iteration, request.block_pose.position.z)
-            block = self.bot.blockAt(new_pose)
+            block = bot.blockAt(new_pose)
 
             # Iterated from dirt to sky
             if block.type == 0 and previous_block.type != 0:
@@ -179,7 +227,8 @@ class MinerosMain(Node):
                 return response
 
     def set_position_callback(self, msg: PoseStamped):
-        self.bot.pathfinder.setGoal(None)
+        self.get_logger().info(f"Set position")
+        bot.pathfinder.setGoal(None)
 
         if msg.pose.position.y == -1.0:
             goal = pathfinder.goals.GoalNearXZ(
@@ -188,23 +237,20 @@ class MinerosMain(Node):
             goal = pathfinder.goals.GoalNear(
                 round(msg.pose.position.x, 2), round(msg.pose.position.y, 2), round(msg.pose.position.z, 2), self.goal_acceptance)
 
-        self.bot.pathfinder.setGoal(goal)
+        bot.pathfinder.setGoal(goal)
+
+        # Wait for goal to be reached
+        self.spin_for_goal()
+        self.position_reached_publisher.publish(Empty())
 
     def set_position_composite_callback(self, msg: PoseArray):
-        self.bot.pathfinder.setGoal(None)
+        self.get_logger().info(f"Set position composite")
 
-        goals = []
+        bot.pathfinder.setGoal(None)
         for pose in msg.poses:
-
-            if pose.position.y == -1.0:
-                goals.append(pathfinder.goals.GoalNearXZ(
-                    round(pose.position.x, 2), round(pose.position.z, 2), self.goal_acceptance))
-            else:
-                goals.append(pathfinder.goals.GoalNear(
-                    round(pose.position.x, 2), round(pose.position.y, 2), round(pose.position.z, 2), self.goal_acceptance))
-
-        goal = pathfinder.goals.GoalCompositeAll(goals)
-        self.bot.pathfinder.setGoal(goal)
+            ps = PoseStamped()
+            ps.pose = pose
+            self.set_position_callback(ps)
 
     def find_blocks_callback(self, request: FindBlocks.Request, response: FindBlocks.Response):
         self.get_logger().info(f"Find blocks: {request.blockid}")
@@ -216,7 +262,7 @@ class MinerosMain(Node):
         if request.count != 0:
             options['count'] = request.count
 
-        blocks = self.bot.findBlocks(options)
+        blocks = bot.findBlocks(options)
 
         assert blocks is not None
 
@@ -235,33 +281,33 @@ class MinerosMain(Node):
         pose: Pose = request.block
 
         vec = Vec3(pose.position.x, pose.position.y, pose.position.z)
-        block = self.bot.blockAt(vec)
+        block = bot.blockAt(vec)
 
-        # if not self.bot.canDigBlock(block):
-        #     self.get_logger().info(f"Can't dig block: {vec}")
-        #     self.get_logger().info(f"Block: {block}")
-        #     response.success = False
-        #     return response
+        # Get to block
+        bot.pathfinder.setGoal(None)
+        goal = pathfinder.goals.GoalLookAtBlock(block.position, bot.world)
+        bot.pathfinder.setGoal(goal)
+        self.spin_for_goal()
+
         try:
-            self.bot.collectBlock.collect(block, timeout=10)
+            bot.collectBlock.collect(block, timeout=20)
+            global block_to_monitor
+            block_to_monitor = block
+            self.spin_for_digging()
+
         except Exception as e:
+            self.get_logger().error(f"Error collecting block: {e}")
+            self.reconnect_bot()
             response.success = False
             return response
-            try:
-                self.get_logger().info(f"Error collecting block: {e}")
-                self.bot.collectBlock.collect(block, timeout=10)
-            except Exception as e:
-                self.get_logger().info(f"Error collecting block: {e}")
-                response.success = False
-                return response
-            
+
         self.get_logger().info(f"collected block: {vec}")
 
         response.success = True
         return response
 
     def inventory_contents_service_callback(self, request: Inventory.Request, response: Inventory.Response):
-        items = self.bot.inventory.items()
+        items = bot.inventory.items()
         inventory = []
 
         self.get_logger().info(f"Inventory contents: {items}")
@@ -278,7 +324,7 @@ class MinerosMain(Node):
 
     def place_block_callback(self, request: PlaceBlock.Request, response: PlaceBlock.Response):
         block = request.block
-        mc_block = self.bot.blockAt(Vec3(
+        mc_block = bot.blockAt(Vec3(
             block.block_pose.position.x, block.block_pose.position.y, block.block_pose.position.z))
         if mc_block.name == 'air':
             self.get_logger().info(f"Can't place block on air")
@@ -300,30 +346,33 @@ class MinerosMain(Node):
 
         self.get_logger().info(
             f"Placing block: {item.id} at {point} with {face_vector}")
-        block = self.bot.blockAt(point)
+        block = bot.blockAt(point)
 
         # Get to block
-        self.bot.pathfinder.setGoal(None)
-
+        bot.pathfinder.setGoal(None)
         goal = pathfinder.goals.GoalPlaceBlock(block.position.plus(
-            face_vector), self.bot.world, {'range': 5, 'half': 'top'})
-        self.bot.pathfinder.setGoal(goal)
+            face_vector), bot.world, {'range': 5, 'half': 'top'})
+        bot.pathfinder.setGoal(goal)
+        self.spin_for_goal()
 
-        items = self.bot.inventory.items()
-        item = list(filter(lambda i: i.type == item.id, items))[0]
-        self.bot.equip(item, 'hand')
+        items = bot.inventory.items()
+        item = list(filter(lambda i: i.type == item.id, items))
+        if len(item) == 0:
+            self.get_logger().info(f"Can't place block: {item.id}")
+            return False
+        item = item[0]
+        bot.equip(item, 'hand')
 
         c = 0
         while 1:
             try:
-                time.sleep(1)
-                self.bot.placeBlock(block, face_vector)
+                bot.placeBlock(block, face_vector)
                 self.get_logger().info(
                     f"Placed block: {item.id} at {point} with {face_vector}")
 
                 return True
             except Exception as e:
-                time.sleep(1)
+                time.sleep(0.1)
                 self.get_logger().info(f"{e}")
                 c += 1
                 if c >= 10:
@@ -334,12 +383,12 @@ class MinerosMain(Node):
         self.get_logger().info(f"Crafting item: {item.id}")
 
         if request.crafting_table:
-            crafting_table = self.bot.blockAt(Vec3(
+            crafting_table = bot.blockAt(Vec3(
                 request.crafting_table_location.x, request.crafting_table_location.y, request.crafting_table_location.z))
         else:
             crafting_table = None  # None is an alias for the player's inventory
 
-        recipe = list(self.bot.recipesFor(item.id, None, None, crafting_table))
+        recipe = list(bot.recipesFor(item.id, None, None, crafting_table))
 
         self.get_logger().info(f"Recipe: {recipe}")
         if len(recipe) == 0:
@@ -347,7 +396,8 @@ class MinerosMain(Node):
             response.success = False
             return response
 
-        self.bot.craft(recipe[0], item.count, crafting_table)
+        bot.craft(recipe[0], item.count, crafting_table)
+        time.sleep(0.05)
         self.get_logger().info(f"Crafted item: {item.id}")
         response.success = True
 
@@ -359,8 +409,7 @@ class MinerosMain(Node):
 
     def local_pose_timer_callback(self):
         try:
-            self.get_logger().info("Publishing local pose")
-            bot_position = self.bot.entity.position
+            bot_position = bot.entity.position
         except Exception as e:
             self.get_logger().info(f"Error getting bot position: {e}")
             return
@@ -369,6 +418,7 @@ class MinerosMain(Node):
         pose.pose.position.x = float(bot_position.x)
         pose.pose.position.y = float(bot_position.y)
         pose.pose.position.z = float(bot_position.z)
+        pose.header.stamp = self.get_clock().now().to_msg()
         self.local_position_publisher.publish(pose)
 
 
