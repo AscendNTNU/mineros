@@ -299,7 +299,6 @@ class MinerosMain(Node):
 
         except Exception as e:
             self.get_logger().error(f"Error collecting block: {e}")
-            self.reconnect_bot()
             response.success = False
             return response
 
