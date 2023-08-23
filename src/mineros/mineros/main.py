@@ -134,6 +134,7 @@ class MinerosMain(Node):
             '/mineros/interaction/craft',
             self.craft_item_service_callback
         )
+        
 
         # Info publishers
         self.local_position_publisher = self.create_publisher(
@@ -164,13 +165,14 @@ class MinerosMain(Node):
                 return
         goal_reached = False
 
-    def spin_for_digging(self):
+    def spin_for_digging(self, block):
         global digging_completed
         start = time.time()
+        time_to_dig = bot.digTime(block)* 10**(-6) + 0.5
 
         while not digging_completed:
             time.sleep(0.1)
-            if time.time() - start > self.digging_timeout:
+            if time.time() - start > time_to_dig:
                 self.get_logger().info("Digging timeout")
                 return
         digging_completed = False
@@ -290,10 +292,10 @@ class MinerosMain(Node):
         self.spin_for_goal()
 
         try:
-            bot.collectBlock.collect(block, timeout=20)
             global block_to_monitor
             block_to_monitor = block
-            self.spin_for_digging()
+            bot.collectBlock.collect(block, timeout=20)
+            self.spin_for_digging(block)
 
         except Exception as e:
             self.get_logger().error(f"Error collecting block: {e}")
@@ -333,6 +335,8 @@ class MinerosMain(Node):
 
         response.success = self.place_block(block)
         return response
+    
+    # TODO: placed block None fix
 
     def place_block(self, block: BlockPose):
         self.get_logger().info(f"Placing {block} ")
@@ -358,7 +362,7 @@ class MinerosMain(Node):
         items = bot.inventory.items()
         item = list(filter(lambda i: i.type == item.id, items))
         if len(item) == 0:
-            self.get_logger().info(f"Can't place block: {item.id}")
+            self.get_logger().info(f"Can't place block: {block.block.id}")
             return False
         item = item[0]
         bot.equip(item, 'hand')
@@ -378,13 +382,14 @@ class MinerosMain(Node):
                 if c >= 10:
                     return False
 
+    # TODO: fix craft with pose
     def craft_item_service_callback(self, request: Craft.Request, response: Craft.Response):
         item = request.item
         self.get_logger().info(f"Crafting item: {item.id}")
 
         if request.crafting_table:
             crafting_table = bot.blockAt(Vec3(
-                request.crafting_table_location.x, request.crafting_table_location.y, request.crafting_table_location.z))
+                request.crafting_table_location.position.x, request.crafting_table_location.position.y, request.crafting_table_location.position.z))
         else:
             crafting_table = None  # None is an alias for the player's inventory
 
