@@ -12,7 +12,9 @@ bot = mineflayer.createBot(
 bot.loadPlugin(pathfinder.pathfinder)
 
 mc_data = require('minecraft-data')(bot.version)
+registry = require('prismarine-registry')(bot.version)
 
+print(registry.blocksByName.furnace.id)
 
 # The spawn event
 once(bot, 'login')

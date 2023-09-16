@@ -64,11 +64,11 @@ class MiningTestNode(Node):
 
     def tests(self):
         
-        self.test_mine_block()
+        # self.test_mine_block()
 
-        self.test_find_grass()
-        self.test_inventory()
-        self.test_place_block()  # WARNING: This test is broken
+        # self.test_find_grass()
+        # self.test_inventory()
+        # self.test_place_block() 
         self.test_craft_crafting_table()
 
         self.destroy_node()

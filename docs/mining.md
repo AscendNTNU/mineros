@@ -9,11 +9,11 @@ The request has the following params:
 
 returns a geometry_msgs/PoseArray with the blocks found
 
-# Collect blocks
-call the `/mineros/mining/mine_blocks` service with the MineBlocks service request. The request has the following params:
-- blocks: a geometry_msgs/PoseArray with the blocks to mine
+# Collect block
+call the `/mineros/mining/mine_block` service with the MineBlock service request. The request has the following params:
+- block: a geometry_msgs/Pose with the block to mine
 
-returns a std_msgs/Bool[] with the result of each mining operation
+returns a std_msgs/Bool with the result of the mining operation
 
 # Inventory
 call the `/mineros/inventory/contents` service with the Inventory service request. The request is a trigger and returns:

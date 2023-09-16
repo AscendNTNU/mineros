@@ -11,8 +11,10 @@ from rclpy.callback_groups import ReentrantCallbackGroup
 
 from std_msgs.msg import Empty
 from geometry_msgs.msg import PoseStamped, PoseArray, Pose, Point
-from mineros_interfaces.srv import FindBlocks, MineBlock, Inventory, PlaceBlock, Craft, BlockInfo
-from mineros_interfaces.msg import Item, BlockPose
+from mineros_interfaces.srv import FindBlocks, MineBlock, Inventory, PlaceBlock, Craft, BlockInfo, FurnaceInfo
+from mineros_interfaces.msg import Item, BlockPose, Furnace
+
+from .utils import item_to_item_msg
 
 mineflayer = require('mineflayer')
 pathfinder = require('mineflayer-pathfinder')
@@ -30,14 +32,18 @@ bot.loadPlugin(collectBlock)
 once(bot, 'login')
 bot.chat('I spawned')
 
+registry = require('prismarine-registry')(bot.version)
+
 # Instantiating pathfinding
 movements = pathfinder.Movements(bot)
 bot.pathfinder.setMovements(movements)
 
 # Events
+""" 
+Ros doesnt work asynch and the javascript api is fundamentally asynch, the only way to reconcile this
+is to bussy wait on falgs, the below events set the flags whenever a new event is completed
+"""
 goal_reached = False
-
-
 @On(bot, 'goal_reached')
 def on_goal_reached(_, goal):
     print(f'Goal reached')
@@ -47,8 +53,6 @@ def on_goal_reached(_, goal):
 
 
 digging_completed = False
-
-
 @On(bot, 'diggingCompleted')
 def on_digging_completed(_, block):
     global digging_completed
@@ -134,7 +138,13 @@ class MinerosMain(Node):
             '/mineros/interaction/craft',
             self.craft_item_service_callback
         )
-        
+
+        self.furnace = None
+        self.furnace_info_service = self.create_service(
+            FurnaceInfo,
+            '/mineros/interaction/furnace_info',
+            self.furnace_info_service_callback
+        )
 
         # Info publishers
         self.local_position_publisher = self.create_publisher(
@@ -168,7 +178,7 @@ class MinerosMain(Node):
     def spin_for_digging(self, block):
         global digging_completed
         start = time.time()
-        time_to_dig = bot.digTime(block)* 10**(-6) + 0.5
+        time_to_dig = bot.digTime(block) * 10**(-6) + 0.5
 
         while not digging_completed:
             time.sleep(0.1)
@@ -176,7 +186,8 @@ class MinerosMain(Node):
                 self.get_logger().info("Digging timeout")
                 return
         digging_completed = False
-
+        
+   
     def calculate_wait_time(self, target: Vec3):
         """Calculates the time it takes to get to a target position on average"""
         current_position = bot.entity.position
@@ -313,11 +324,7 @@ class MinerosMain(Node):
 
         self.get_logger().info(f"Inventory contents: {items}")
         for item in items:
-            item_msg = Item()
-            item_msg.id = item.type
-            item_msg.count = item.count
-            item_msg.slot = item.slot
-            item_msg.metadata = item.metadata
+            item_msg = item_to_item_msg(item)
             inventory.append(item_msg)
 
         response.inventory = inventory
@@ -334,7 +341,7 @@ class MinerosMain(Node):
 
         response.success = self.place_block(block)
         return response
-    
+
     # TODO: placed block None fix
 
     def place_block(self, block: BlockPose):
@@ -381,7 +388,6 @@ class MinerosMain(Node):
                 if c >= 10:
                     return False
 
-    # TODO: fix craft with pose
     def craft_item_service_callback(self, request: Craft.Request, response: Craft.Response):
         item = request.item
         self.get_logger().info(f"Crafting item: {item.id}")
@@ -407,8 +413,44 @@ class MinerosMain(Node):
 
         return response
 
-    # TODO use stove
+    def furnace_info_service_callback(self, request: FurnaceInfo.Request, response: FurnaceInfo.Response):
+        self.get_logger().info(f"Furnace info called")
+        furnace_block_point: Point = request.block_pose.position
+        furnace_msg: Furnace = Furnace()
+        
+        furnace_block = bot.blockAt(Vec3(
+            furnace_block_point.x, furnace_block_point.y, furnace_block_point.z))
+        
+        if furnace_block is None:
+            self.get_logger().info(f"Can't find furnace")
+            response.success = False
+            return response
+        elif furnace_block.type != registry.blocksByName.furnace.id:
+            self.get_logger().info(f'{furnace_block.type}, {registry.blocksByName.furnace.type}')
+            self.get_logger().info(f"Given block is not a furnace, it is {furnace_block.name}")
+            response.success = False
+            return response
+        
+        furnace = None
+        
+        # TODO: find a way to access the furnace
+        furnace = bot.openFurnace(furnace_block)
+        
+        if furnace is None:
+            self.get_logger().info(f"Can't find furnace")
+            response.success = False
+            return response
+        
+        furnace_msg.input_item = item_to_item_msg(furnace.inputItem())
+        furnace_msg.fuel_item = item_to_item_msg(furnace.fuelItem())
+        furnace_msg.output_item = item_to_item_msg(furnace.outputItem())
+        furnace_msg.progress = float(furnace.progress)
 
+        response.furnace = furnace_msg
+        response.success = True
+        return response
+        
+    
     # TODO kill or avoid mobs
 
     def local_pose_timer_callback(self):

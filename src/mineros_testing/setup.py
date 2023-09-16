@@ -22,6 +22,7 @@ setup(
         'console_scripts': [
             'movement_tester = mineros_testing.movement_test:main',
             'mining_tester = mineros_testing.mining_test:main',
+            'interaction_tester = mineros_testing.interaction_test:main'
         ]
     },
 )
