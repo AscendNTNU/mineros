@@ -61,7 +61,9 @@ class InteractionTestNode(Node):
         req = FurnaceInfo.Request()
         req.block_pose = pose
         future = self.furnace_info_client.call_async(req)
+        self.get_logger().info('Waiting for furnace info')
         rclpy.spin_until_future_complete(self, future)
+        self.get_logger().info('Got furnace info')
         furace: Furnace = future.result()
         self.get_logger().info(f'{furace}')
         assert furace.success

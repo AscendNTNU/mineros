@@ -444,12 +444,14 @@ class MinerosMain(Node):
             response.success = False
             return response
         
-        self.get_logger().info(f"Furnace info: {furnace}")
         
         furnace_msg.input_item = item_to_item_msg(furnace.inputItem())
         furnace_msg.fuel_item = item_to_item_msg(furnace.fuelItem())
         furnace_msg.output_item = item_to_item_msg(furnace.outputItem())
-        furnace_msg.progress = float(furnace.progress)
+        if furnace.progress is not None:
+            furnace_msg.progress = float(furnace.progress)
+        else:
+            furnace_msg.progress = 0.0
 
         response.furnace = furnace_msg
         response.success = True

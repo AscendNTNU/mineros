@@ -70,6 +70,7 @@ class MiningTestNode(Node):
         # self.test_inventory()
         # self.test_place_block() 
         self.test_craft_crafting_table()
+        self.test_craft_wood_axe()
 
         self.destroy_node()
         rclpy.shutdown()
@@ -182,7 +183,6 @@ class MiningTestNode(Node):
         block = future.result()
         return block.block.block_pose
 
-    # TODO: figure out the id for the wood block
     def test_craft_crafting_table(self):
         self.get_logger().info('Crafting test started')
         blocks = self.find_blocks(46, 4)
@@ -221,6 +221,47 @@ class MiningTestNode(Node):
         
         self.test_place_block(278)
         
+    def test_craft_wood_axe(self):
+        # Craft planks
+        crafting_req = Craft.Request()
+        item = Item()
+        item.id = 23
+        item.count = 8
+        crafting_req.item = item
+        crafting_req.crafting_table = False
+        
+        future = self.craft_client.call_async(crafting_req)
+        rclpy.spin_until_future_complete(self, future)
+        
+        # Craft sticks
+        crafting_req = Craft.Request()
+        item = Item()
+        item.id = 807
+        item.count = 4
+        crafting_req.item = item
+        crafting_req.crafting_table = False
+        
+        future = self.craft_client.call_async(crafting_req)
+        rclpy.spin_until_future_complete(self, future)
+        
+        # Craft axe
+        crafting_req = Craft.Request()
+        item = Item()
+        item.id = 780
+        item.count = 1
+        crafting_req.item = item
+        crafting_req.crafting_table = True
+        
+        # Find crafting table
+        blocks = self.find_blocks(182, 1)
+        assert len(blocks) > 0
+        block: Pose = blocks[0]
+        crafting_req.crafting_table_location = block
+        
+        future = self.craft_client.call_async(crafting_req)
+        rclpy.spin_until_future_complete(self, future)
+        assert future.result().success
+
         
 
 
