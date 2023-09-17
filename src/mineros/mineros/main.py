@@ -11,10 +11,10 @@ from rclpy.callback_groups import ReentrantCallbackGroup
 
 from std_msgs.msg import Empty
 from geometry_msgs.msg import PoseStamped, PoseArray, Pose, Point
-from mineros_interfaces.srv import FindBlocks, MineBlock, Inventory, PlaceBlock, Craft, BlockInfo, FurnaceInfo
+from mineros_interfaces.srv import FindBlocks, MineBlock, Inventory, PlaceBlock, Craft, BlockInfo, FurnaceInfo, FurnaceUpdate
 from mineros_interfaces.msg import Item, BlockPose, Furnace
 
-from .utils import item_to_item_msg
+from .utils import item_to_item_msg, item_equal
 
 mineflayer = require('mineflayer')
 pathfinder = require('mineflayer-pathfinder')
@@ -139,11 +139,16 @@ class MinerosMain(Node):
             self.craft_item_service_callback
         )
 
-        self.furnace = None
         self.furnace_info_service = self.create_service(
             FurnaceInfo,
             '/mineros/interaction/furnace_info',
             self.furnace_info_service_callback
+        )
+        
+        self.furnace_update_service = self.create_service(
+            FurnaceUpdate,
+            '/mineros/interaction/furnace_update',
+            self.furnace_update_service_callback
         )
 
         # Info publishers
@@ -432,14 +437,14 @@ class MinerosMain(Node):
             return response
         
         furnace = None
-        
-        # TODO: find a way to access the furnace
         furnace = bot.openFurnace(furnace_block)
         
         if furnace is None:
             self.get_logger().info(f"Can't find furnace")
             response.success = False
             return response
+        
+        self.get_logger().info(f"Furnace info: {furnace}")
         
         furnace_msg.input_item = item_to_item_msg(furnace.inputItem())
         furnace_msg.fuel_item = item_to_item_msg(furnace.fuelItem())
@@ -450,7 +455,44 @@ class MinerosMain(Node):
         response.success = True
         return response
         
+    def furnace_update_service_callback(self, request: FurnaceUpdate.Request, response: FurnaceUpdate.Response):
+        def evaluate_furnace_action(request_item, old_item, take_action: callable, put_action: callable):
+            if request_item is not None and not item_equal(old_item, request_item):
+                if old_item.count > 0:
+                    take_action()
+                if request_item.count > 0:
+                    put_action(request_item.id, None, request_item.count)
+                
+        furnace_info = FurnaceInfo.Request()
+        furnace_info.block_pose = request.block_pose
+        
+        old_furnace = self.furnace_info_service_callback(furnace_info, FurnaceInfo.Response())
+        if not old_furnace.success:
+            response.success = False
+            return response
+        
+        furnace_block_point: Point = request.block_pose.position
+        furnace_block = bot.blockAt(Vec3(
+            furnace_block_point.x, furnace_block_point.y, furnace_block_point.z))
+        furnace = bot.openFurnace(furnace_block) 
     
+        if furnace is None:
+            self.get_logger().info(f"Can't find furnace")
+            response.success = False
+            return response
+        
+        evaluate_furnace_action(request.furnace.input_item, old_furnace.furnace.input_item, furnace.takeInput, furnace.putInput)
+        evaluate_furnace_action(request.furnace.output_item, old_furnace.furnace.output_item, furnace.takeOutput, furnace.putOutput)
+        if not request.ignore_fuel:
+            evaluate_furnace_action(request.furnace.fuel_item, old_furnace.furnace.fuel_item, furnace.takeFuel, furnace.putFuel)
+                
+        # Now the furnace should be equal to the update furnace request version, is good.
+        response.success = True
+        return response
+    
+    
+        
+            
     # TODO kill or avoid mobs
 
     def local_pose_timer_callback(self):

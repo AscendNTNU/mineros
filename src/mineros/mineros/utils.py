@@ -1,5 +1,5 @@
+from mineros_interfaces.msg import Item, Furnace
 
-from mineros_interfaces.msg import Item
 def item_to_item_msg(item) -> Item:
     if item is None:
         item_msg = Item()
@@ -15,4 +15,12 @@ def item_to_item_msg(item) -> Item:
     item_msg.slot = item.slot
     item_msg.metadata = item.metadata
     return item_msg
+
+def item_equal(item1: Item, item2: Item):
     
+    if item1 is None and item2 is None:
+        return True
+    if item1 is None or item2 is None:
+        return False
+    return item1.id == item2.id and item1.count == item2.count
+
