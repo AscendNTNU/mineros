@@ -1,5 +1,12 @@
-## Craft item
+# Craft item
 call `/mineros/interaction/craft` with a `mineros_interfaces/Craft` request. The request has the following params:
-- `mineros_interfaces/Item` item to craft
-- `bool crafting_table` if the bot should use a crafting table or not
-- `geometry_msgs/Pose` 
+
+- `mineros_interfaces/Item` - item to craft
+- `bool crafting_table` - if the bot should use a crafting table or not
+- `geometry_msgs/Pose crafting_table_location` -  The location of the crafting table to use, needs only be specified if crafting_table is true
+
+returns:
+- `bool success` - Whether the operation was successful or not
+
+## Note on internals
+Internally mineflayer looks up the recipe of the item and checks if the bot has the items required to craft it, if it does it crafts if not it returns false.

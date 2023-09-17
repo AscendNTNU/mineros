@@ -45,3 +45,5 @@ on the boot up of the mineros system all item ids are written to the file ` docs
 - [Navigation](docs/navigation.md)
 - [Mining](docs/mining.md)
 - [Building](docs/building.md)
+- [Furnace](docs/furnace.md)
+- [Crafting](docs/crafting.md)
