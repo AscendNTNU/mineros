@@ -1,4 +1,4 @@
-# MineROS documentation
+# MineROS relase 1.0 documentation
 
 MineROS allows the user to fully control a mc bot using ros services and topics, The current version of MineROS is made for ROS2 Foxy and is still in development. The purpose of this project is to give a conducive learning environment for people who want to learn ROS2 and python. Specifically for people who want to learn mavros, as this is what the project attempts to mock.
 
