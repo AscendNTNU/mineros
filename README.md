@@ -21,7 +21,7 @@ MineROS allows the user to fully control a mc bot using ros services and topics,
 
 ## Running
 Make sure a minecraft server is running on localhost:25565
-``` python3 mineros.py ```
+``` ros2 run mineros mineros_main ```
 
 ___
 # API doc
