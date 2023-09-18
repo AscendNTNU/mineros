@@ -15,7 +15,7 @@ returns:
 
 # Inventory
 call the `/mineros/inventory/contents` service with the Inventory service request. The request is a trigger (no params) and returns:
-- `mineros_interfaces/Item[]` - Array of items in the inventory, see below for the item message definition
+- `mineros_inter/Item[]` - Array of items in the inventory, see below for the item message definition
 
 ## Item msg
 - `uint16 id` - The id of the item, IMPORTANT: this is the item id not the block id, they are different

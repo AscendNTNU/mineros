@@ -1,4 +1,4 @@
-from mineros_interfaces.msg import Item, Furnace
+from mineros_inter.msg import Item, Furnace
 
 def item_to_item_msg(item) -> Item:
     if item is None:

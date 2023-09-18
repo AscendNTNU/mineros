@@ -12,7 +12,7 @@ from mavros_msgs.msg import Waypoint, WaypointList, WaypointReached, State
 from std_msgs.msg import Empty
 from geometry_msgs.msg import PoseStamped, PoseArray, Pose
 
-from mineros_interfaces.srv import BlockInfo
+from mineros_inter.srv import BlockInfo
 
 
 class MovementTestNode(Node):

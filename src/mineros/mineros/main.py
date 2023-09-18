@@ -11,8 +11,8 @@ from rclpy.callback_groups import ReentrantCallbackGroup
 
 from std_msgs.msg import Empty
 from geometry_msgs.msg import PoseStamped, PoseArray, Pose, Point
-from mineros_interfaces.srv import FindBlocks, MineBlock, Inventory, PlaceBlock, Craft, BlockInfo, FurnaceInfo, FurnaceUpdate
-from mineros_interfaces.msg import Item, BlockPose, Furnace
+from mineros_inter.srv import FindBlocks, MineBlock, Inventory, PlaceBlock, Craft, BlockInfo, FurnaceInfo, FurnaceUpdate
+from mineros_inter.msg import Item, BlockPose, Furnace
 
 from .utils import item_to_item_msg, item_equal
 

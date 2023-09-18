@@ -9,8 +9,8 @@ from geometry_msgs.msg import Point, Pose, PoseStamped
 from javascript import AsyncTask, On, Once, off, once, require
 from rclpy.node import Node
 
-from mineros_interfaces.msg import BlockPose, Item
-from mineros_interfaces.srv import (BlockInfo, Craft, FindBlocks, Inventory,
+from mineros_inter.msg import BlockPose, Item
+from mineros_inter.srv import (BlockInfo, Craft, FindBlocks, Inventory,
                                     MineBlock, PlaceBlock)
 
 

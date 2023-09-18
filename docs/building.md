@@ -1,6 +1,6 @@
 # PlaceBlocks
-Call the `/mineros/interaction/place_block` service with a mineros_interfaces/PlaceBlock request. The request has the following params:
-- `mineros_interfaces/BlockPose block` - An object that specifies where to place the block. See below for how to use this message
+Call the `/mineros/interaction/place_block` service with a mineros_inter/PlaceBlock request. The request has the following params:
+- `mineros_inter/BlockPose block` - An object that specifies where to place the block. See below for how to use this message
 
 returns: 
 - `bool success` - Whether the operation was successful or not
@@ -8,7 +8,7 @@ returns:
 ## BlockPose
 The BlockPose message is used to specify where to place a block. And what block to place. It has the following params:
 - `geometry_msgs/Pose block_pose` - The pose of the block to place
-- `mineros_interfaces/Item block` - The block to place
+- `mineros_inter/Item block` - The block to place
 - `geometry_msgs/Point face_vector` - The vector that specifies which face of the block to place on
 
 It is very important that the block param is specified using the item id of the block that you wish to place, not the block id.

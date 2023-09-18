@@ -3,8 +3,8 @@ from rclpy.node import Node
 
 from geometry_msgs.msg import PoseStamped, Pose
 
-from mineros_interfaces.srv import FindBlocks, FurnaceInfo, FurnaceUpdate
-from mineros_interfaces.msg import Furnace, Item
+from mineros_inter.srv import FindBlocks, FurnaceInfo, FurnaceUpdate
+from mineros_inter.msg import Furnace, Item
 
 from .utils import item_equal
 

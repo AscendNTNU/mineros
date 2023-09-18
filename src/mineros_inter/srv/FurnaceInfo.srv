@@ -1,0 +1,4 @@
+geometry_msgs/Pose block_pose
+---
+mineros_inter/Furnace furnace
+bool success
