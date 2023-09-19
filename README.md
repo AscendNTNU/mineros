@@ -6,7 +6,7 @@ MineROS allows the user to fully control a mc bot using ros services and topics,
 - ROS2 Foxy
 - Python3
 - Javascript
-- Nodejs
+- Nodejs version >= 20
 - Mineflayer Api
 - Minecraft server
 

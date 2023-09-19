@@ -198,8 +198,6 @@ class MiningTestNode(Node):
         crafting_req.item = item
         crafting_req.crafting_table = False
         
-        while not self.craft_client.wait_for_service(timeout_sec=1.0):
-            self.get_logger().info('Waiting for service')
         future = self.craft_client.call_async(crafting_req)
         rclpy.spin_until_future_complete(self, future)
         assert future.result().success
