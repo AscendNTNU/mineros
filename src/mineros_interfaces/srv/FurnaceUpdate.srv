@@ -1,5 +1,0 @@
-mineros_inter/Furnace furnace
-geometry_msgs/Pose block_pose
-bool ignore_fuel
----
-bool success
