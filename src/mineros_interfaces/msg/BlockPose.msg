@@ -1,3 +1,0 @@
-mineros_inter/Item block
-geometry_msgs/Pose block_pose
-geometry_msgs/Point face_vector

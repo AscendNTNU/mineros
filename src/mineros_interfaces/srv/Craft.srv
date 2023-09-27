@@ -1,5 +1,0 @@
-mineros_inter/Item item
-bool crafting_table
-geometry_msgs/Pose crafting_table_location
----
-bool success

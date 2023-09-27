@@ -1,5 +1,0 @@
-uint16 blockid
-uint16 max_distance
-uint16 count
----
-geometry_msgs/PoseArray blocks 
