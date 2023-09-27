@@ -16,10 +16,15 @@ def generate_launch_description():
             package="mineros",
             executable="mineros_main",
             name = "mineros_bot",
-        )
-        # Node(
-        #     package="mineros",
-        #     executable="info_bot",
-        #     name = "info_bot",
-        #  )
+        ),
+        Node(
+            package="my_first_node",
+            executable="fsm",
+            name = "fsm_node",
+         ),
+        Node(
+            package="my_first_node",
+            executable="helper",
+            name = "helper_node",
+        ),
     ])

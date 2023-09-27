@@ -1,9 +1,10 @@
+import time
 import rclpy
 from rclpy.node import Node
 
 from typing import Any
 from geometry_msgs.msg import PoseStamped
-from mineros_inter.srv import BlockInfo
+from mineros_inter.srv import BlockInfo, BotPos
 
 class MyFirstFSM(Node):
     """
@@ -34,9 +35,23 @@ class MyFirstFSM(Node):
             '/mineros/findy'
         )
         
+        self.bot_pos_service = self.create_client(
+            BotPos,
+            '/mineros/get_bot_position',
+        )
+        
         # Task 2
         # To make the bot move in a square we need to know the bots location and we need to be able to move the bot
         # set up the required publisher and subscriber here:
+        
+        while 1:
+            while self.bot_pos_service.wait_for_service(timeout_sec=1.0) == False:
+                self.get_logger().info('Waiting for service')
+            request = BotPos.Request()
+            future = self.bot_pos_service.call_async(request)
+            rclpy.spin_until_future_complete(self, future)
+            self.get_logger().info('Result: %s' % future.result())
+        
         
         
 def main(args=None):
