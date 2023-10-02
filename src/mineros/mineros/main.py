@@ -93,6 +93,13 @@ class MinerosMain(Node):
             self.set_position_callback,
             10
         )
+        
+        self.set_look_at_block = self.create_subscription(
+            PoseStamped,
+            '/mineros/set_look_at_block',
+            self.look_at_block_callback,
+            10
+        )
 
         self.set_position_composite = self.create_subscription(
             PoseArray,
@@ -260,7 +267,19 @@ class MinerosMain(Node):
         # Wait for goal to be reached
         self.spin_for_goal()
         self.position_reached_publisher.publish(Empty())
-
+        
+    def look_at_block_callback(self, msg: PoseStamped):
+        self.get_logger().info(f"Look at block")
+        bot.pathfinder.setGoal(None)
+        vec = Vec3(msg.pose.position.x, msg.pose.position.y, msg.pose.position.z)
+        block = bot.blockAt(vec)
+        
+        goal = pathfinder.goals.GoalLookAtBlock(block.position, bot.world)
+        bot.pathfinder.setGoal(goal)
+        
+        self.spin_for_goal()
+        self.position_reached_publisher.publish(Empty())
+                
     def set_position_composite_callback(self, msg: PoseArray):
         self.get_logger().info(f"Set position composite")
 
