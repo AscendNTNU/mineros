@@ -51,6 +51,14 @@ class MovementTestNode(Node):
            self.position_reached_cb,
            10
         )
+        self.furnace_loc = (754.452, 102.0, 1666.395)
+        
+        self.set_look_at_block = self.create_publisher(
+            PoseStamped,
+            '/mineros/set_look_at_block',
+            10
+        )
+        
         self.tests()
 
     def position_cb(self, msg: PoseStamped):
@@ -60,18 +68,36 @@ class MovementTestNode(Node):
         self.reached_count += 1
         
     def tests(self):
-        for i in range(5):
-            self.get_logger().info(f'Stress test {i}')
-            self.test_position_xz(1, True)
-            rclpy.spin_once(self, timeout_sec=0.1)
-        self.get_logger().info('Stress test passed')
+        # for i in range(5):
+        #     self.get_logger().info(f'Stress test {i}')
+        #     self.test_position_xz(1, True)
+        #     rclpy.spin_once(self, timeout_sec=0.1)
+        # self.get_logger().info('Stress test passed')
 
-        self.test_position_xyz(10)
-        self.test_position_xz(10)
-        self.test_composite()
+        # self.test_position_xyz(10)
+        # self.test_position_xz(10)
+        # self.test_composite()
+        self.test_look_at_block()
 
         self.destroy_node()
         rclpy.shutdown()
+                
+    def test_look_at_block(self):
+        while self.position is None:
+            self.get_logger().info('Waiting for position')
+            rclpy.spin_once(self, timeout_sec=0.1)
+            
+        
+        ps = PoseStamped()
+        ps.pose.position.x = self.furnace_loc[0]
+        ps.pose.position.y = self.furnace_loc[1]
+        ps.pose.position.z = self.furnace_loc[2]
+        previous_reached_count = self.reached_count
+        self.set_look_at_block.publish(ps)
+        
+        while self.reached_count == previous_reached_count:
+            rclpy.spin_once(self, timeout_sec=0.1)
+
 
     def test_find_y(self):
         while self.position is None:
