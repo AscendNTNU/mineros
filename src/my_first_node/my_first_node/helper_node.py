@@ -1,5 +1,6 @@
 import rclpy
 from rclpy.node import Node
+from mineros_inter.srv import PlayerPose
 
 from geometry_msgs.msg import PoseStamped
 
@@ -17,6 +18,7 @@ class MyFirstHelperNode(Node):
         
         super().__init__('helper_node')
         self.get_logger().info('Helper running')
+        self.get_player_pose = self.create_service(PlayerPose,'player_pose_client',self.player_pose_service_callback)
         self.current_position = None
         
         # This is how you declare a subscription, the subscription listents to topics, when a message is
@@ -28,7 +30,10 @@ class MyFirstHelperNode(Node):
             10                                       # The quality of service
         )
     
-    
+    def player_pose_service_callback(self, request, response):
+        response.pose = self.current_position
+        return response
+
     def position_cb(self, msg: PoseStamped):
         self.current_position = msg
     

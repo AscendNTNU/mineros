@@ -4,6 +4,9 @@ from rclpy.node import Node
 from typing import Any
 from geometry_msgs.msg import PoseStamped
 from mineros_inter.srv import BlockInfo
+from mineros_inter.srv import PlayerPose
+from std_msgs.msg import String
+import copy
 
 class MyFirstFSM(Node):
     """
@@ -33,12 +36,35 @@ class MyFirstFSM(Node):
             BlockInfo,
             '/mineros/findy'
         )
-        
         # Task 2
         # To make the bot move in a square we need to know the bots location and we need to be able to move the bot
         # set up the required publisher and subscriber here:
-        
-        
+        self.pose_client = self.create_client(PlayerPose, 'player_pose_client')
+        while not self.pose_client.wait_for_service(timeout_sec=1.0):
+            self.get_logger().info('service not available, waiting again...')
+        self.pose_request = PlayerPose.Request()
+
+        self.pose_publisher = self.create_publisher(PoseStamped,'/mineros/set_position',10)
+        #self.pose_subscription = self.create_subscription(String,'/mineros/set_position',self.move_to_pose,10)
+    
+        current_position: PoseStamped = self.send_pose_request().pose
+        current_position.pose.position
+        goal_position = copy.deepcopy(current_position)
+        goal_position.pose.position.x = -21.0
+        goal_position.pose.position.y = 122.0
+        goal_position.pose.position.z = -39.0
+        self.move_to_pose(goal_position)
+    #
+    def send_pose_request(self):
+        self.future = self.pose_client.call_async(self.pose_request)
+        rclpy.spin_until_future_complete(self,self.future)
+        return self.future.result()
+
+    def move_to_pose(self, msg):
+        self.pose_publisher.publish(msg)    
+
+           
+            
 def main(args=None):
     rclpy.init(args=args)
     node = MyFirstFSM()

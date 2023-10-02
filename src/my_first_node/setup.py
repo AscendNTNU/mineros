@@ -21,7 +21,8 @@ setup(
     entry_points={
         'console_scripts': [
             'fsm = my_first_node.fsm_node:main',
-            'helper = my_first_node.helper_node:main'
+            'helper = my_first_node.helper_node:main',
+            'crafter = my_first_node.craft_item:main'
         ]
     },
 )

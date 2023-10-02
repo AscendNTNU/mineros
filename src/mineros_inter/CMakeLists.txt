@@ -26,6 +26,7 @@ set(srv_files
   "srv/BlockInfo.srv"
   "srv/FurnaceInfo.srv"
   "srv/FurnaceUpdate.srv"
+  "srv/PlayerPose.srv"
 )
 
 rosidl_generate_interfaces(${PROJECT_NAME}
