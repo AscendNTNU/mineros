@@ -1,10 +1,10 @@
 import time
 import rclpy
 from rclpy.node import Node
-from mineros_inter.srv import PlayerPose
+from mineros_interface.srv import PlayerPose
 
 from geometry_msgs.msg import PoseStamped
-from mineros_inter.srv import BotPos
+from mineros_interface.srv import BotPos
 
 # Task 1:
 # Create the required logic to allow your fsm node to request the current position of the bot using a service

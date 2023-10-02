@@ -4,8 +4,8 @@ from rclpy.node import Node
 
 from typing import Any
 from geometry_msgs.msg import PoseStamped
-from mineros_inter.srv import BlockInfo
-from mineros_inter.srv import PlayerPose
+from mineros_interface.srv import BlockInfo
+from mineros_interface.srv import PlayerPose
 from std_msgs.msg import String
 import copy
 

@@ -5,8 +5,8 @@ from typing import Any, List
 from geometry_msgs.msg import Pose, PoseStamped
 from std_msgs.msg import String
 import copy
-from mineros_inter.srv import BlockInfo, PlayerPose, FindBlocks, Craft 
-from mineros_inter.msg import Item
+from mineros_interface.srv import BlockInfo, PlayerPose, FindBlocks, Craft 
+from mineros_interface.msg import Item
 
 class CrafterNode(Node):
     """
