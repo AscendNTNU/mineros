@@ -11,10 +11,10 @@ from rclpy.callback_groups import ReentrantCallbackGroup
 
 from std_msgs.msg import Empty
 from geometry_msgs.msg import PoseStamped, PoseArray, Pose, Point
-from mineros_inter.srv import FindBlocks, MineBlock, Inventory, PlaceBlock, Craft, BlockInfo, FurnaceInfo, FurnaceUpdate
+from mineros_inter.srv import FindBlocks, MineBlock, Inventory, PlaceBlock, Craft, BlockInfo, FurnaceInfo, FurnaceUpdate, Recipe
 from mineros_inter.msg import Item, BlockPose, Furnace
 
-from .utils import item_to_item_msg, item_equal
+from .utils import item_to_item_msg, item_equal, recipe_to_recipe_msg
 
 mineflayer = require('mineflayer')
 pathfinder = require('mineflayer-pathfinder')
@@ -44,6 +44,8 @@ Ros doesnt work asynch and the javascript api is fundamentally asynch, the only 
 is to bussy wait on falgs, the below events set the flags whenever a new event is completed
 """
 goal_reached = False
+
+
 @On(bot, 'goal_reached')
 def on_goal_reached(_, goal):
     print(f'Goal reached')
@@ -53,6 +55,8 @@ def on_goal_reached(_, goal):
 
 
 digging_completed = False
+
+
 @On(bot, 'diggingCompleted')
 def on_digging_completed(_, block):
     global digging_completed
@@ -93,7 +97,7 @@ class MinerosMain(Node):
             self.set_position_callback,
             10
         )
-        
+
         self.set_look_at_block = self.create_subscription(
             PoseStamped,
             '/mineros/set_look_at_block',
@@ -146,12 +150,18 @@ class MinerosMain(Node):
             self.craft_item_service_callback
         )
 
+        self.get_recipe_service = self.create_service(
+            Recipe,
+            '/mineros/interaction/recipe',
+            self.get_recipe_service_callback
+        )
+
         self.furnace_info_service = self.create_service(
             FurnaceInfo,
             '/mineros/interaction/furnace_info',
             self.furnace_info_service_callback
         )
-        
+
         self.furnace_update_service = self.create_service(
             FurnaceUpdate,
             '/mineros/interaction/furnace_update',
@@ -198,8 +208,7 @@ class MinerosMain(Node):
                 self.get_logger().info("Digging timeout")
                 return
         digging_completed = False
-        
-   
+
     def calculate_wait_time(self, target: Vec3):
         """Calculates the time it takes to get to a target position on average"""
         current_position = bot.entity.position
@@ -267,19 +276,20 @@ class MinerosMain(Node):
         # Wait for goal to be reached
         self.spin_for_goal()
         self.position_reached_publisher.publish(Empty())
-        
+
     def look_at_block_callback(self, msg: PoseStamped):
         self.get_logger().info(f"Look at block")
         bot.pathfinder.setGoal(None)
-        vec = Vec3(msg.pose.position.x, msg.pose.position.y, msg.pose.position.z)
+        vec = Vec3(msg.pose.position.x,
+                   msg.pose.position.y, msg.pose.position.z)
         block = bot.blockAt(vec)
-        
+
         goal = pathfinder.goals.GoalLookAtBlock(block.position, bot.world)
         bot.pathfinder.setGoal(goal)
-        
+
         self.spin_for_goal()
         self.position_reached_publisher.publish(Empty())
-                
+
     def set_position_composite_callback(self, msg: PoseArray):
         self.get_logger().info(f"Set position composite")
 
@@ -437,33 +447,56 @@ class MinerosMain(Node):
 
         return response
 
+    def get_recipe_service_callback(self, request: Recipe.Request, response: Recipe.Response):
+        item = request.item
+        self.get_logger().info(f"Getting recipe for item: {item.id}")
+
+        if request.crafting_table:
+            crafting_table = bot.blockAt(Vec3(
+                request.crafting_table_location.position.x, request.crafting_table_location.position.y, request.crafting_table_location.position.z))
+        else:
+            crafting_table = None
+
+        recipe = list(bot.recipesAll(item.id, None, crafting_table))
+
+        returned_recipes = []
+        for r in recipe:
+            recipe_msg = recipe_to_recipe_msg(r)
+            self.get_logger().info(f"Recipe: {recipe_msg}")
+            returned_recipes.append(recipe_msg)
+
+        response.recipes = returned_recipes
+        response.success = len(recipe) > 0
+        return response
+
     def furnace_info_service_callback(self, request: FurnaceInfo.Request, response: FurnaceInfo.Response):
         self.get_logger().info(f"Furnace info called")
         furnace_block_point: Point = request.block_pose.position
         furnace_msg: Furnace = Furnace()
-        
+
         furnace_block = bot.blockAt(Vec3(
             furnace_block_point.x, furnace_block_point.y, furnace_block_point.z))
-        
+
         if furnace_block is None:
             self.get_logger().info(f"Can't find furnace")
             response.success = False
             return response
         elif furnace_block.type != registry.blocksByName.furnace.id:
-            self.get_logger().info(f'{furnace_block.type}, {registry.blocksByName.furnace.type}')
-            self.get_logger().info(f"Given block is not a furnace, it is {furnace_block.name}")
+            self.get_logger().info(
+                f'{furnace_block.type}, {registry.blocksByName.furnace.type}')
+            self.get_logger().info(
+                f"Given block is not a furnace, it is {furnace_block.name}")
             response.success = False
             return response
-        
+
         furnace = None
         furnace = bot.openFurnace(furnace_block)
-        
+
         if furnace is None:
             self.get_logger().info(f"Can't find furnace")
             response.success = False
             return response
-        
-        
+
         furnace_msg.input_item = item_to_item_msg(furnace.inputItem())
         furnace_msg.fuel_item = item_to_item_msg(furnace.fuelItem())
         furnace_msg.output_item = item_to_item_msg(furnace.outputItem())
@@ -472,10 +505,12 @@ class MinerosMain(Node):
         else:
             furnace_msg.progress = 0.0
 
+        self.get_logger().info(f'{furnace_msg}')
+
         response.furnace = furnace_msg
         response.success = True
         return response
-        
+
     def furnace_update_service_callback(self, request: FurnaceUpdate.Request, response: FurnaceUpdate.Response):
         def evaluate_furnace_action(request_item, old_item, take_action: callable, put_action: callable):
             if request_item is not None and not item_equal(old_item, request_item):
@@ -483,37 +518,38 @@ class MinerosMain(Node):
                     take_action()
                 if request_item.count > 0:
                     put_action(request_item.id, None, request_item.count)
-                
+
         furnace_info = FurnaceInfo.Request()
         furnace_info.block_pose = request.block_pose
-        
-        old_furnace = self.furnace_info_service_callback(furnace_info, FurnaceInfo.Response())
+
+        old_furnace = self.furnace_info_service_callback(
+            furnace_info, FurnaceInfo.Response())
         if not old_furnace.success:
             response.success = False
             return response
-        
+
         furnace_block_point: Point = request.block_pose.position
         furnace_block = bot.blockAt(Vec3(
             furnace_block_point.x, furnace_block_point.y, furnace_block_point.z))
-        furnace = bot.openFurnace(furnace_block) 
-    
+        furnace = bot.openFurnace(furnace_block)
+
         if furnace is None:
             self.get_logger().info(f"Can't find furnace")
             response.success = False
             return response
-        
-        evaluate_furnace_action(request.furnace.input_item, old_furnace.furnace.input_item, furnace.takeInput, furnace.putInput)
-        evaluate_furnace_action(request.furnace.output_item, old_furnace.furnace.output_item, furnace.takeOutput, furnace.putOutput)
+
+        evaluate_furnace_action(
+            request.furnace.input_item, old_furnace.furnace.input_item, furnace.takeInput, furnace.putInput)
+        evaluate_furnace_action(request.furnace.output_item,
+                                old_furnace.furnace.output_item, furnace.takeOutput, furnace.putOutput)
         if not request.ignore_fuel:
-            evaluate_furnace_action(request.furnace.fuel_item, old_furnace.furnace.fuel_item, furnace.takeFuel, furnace.putFuel)
-                
+            evaluate_furnace_action(
+                request.furnace.fuel_item, old_furnace.furnace.fuel_item, furnace.takeFuel, furnace.putFuel)
+
         # Now the furnace should be equal to the update furnace request version, is good.
         response.success = True
         return response
-    
-    
-        
-            
+
     # TODO kill or avoid mobs
 
     def local_pose_timer_callback(self):
