@@ -1,9 +1,10 @@
 import rclpy
 from rclpy.node import Node
+from typing import List, Tuple
 
 from geometry_msgs.msg import PoseStamped, Pose
 
-from mineros_inter.srv import FindBlocks, FurnaceInfo, FurnaceUpdate
+from mineros_inter.srv import FindBlocks, FurnaceInfo, FurnaceUpdate, Recipe
 from mineros_inter.msg import Furnace, Item
 
 from .utils import item_equal
@@ -37,6 +38,16 @@ class InteractionTestNode(Node):
             '/mineros/interaction/furnace_update',
         )
         
+        self.get_recipe_client = self.create_client(
+            Recipe,
+            '/mineros/interaction/recipe',
+        )
+        
+        self.find_block_client = self.create_client(
+            FindBlocks,
+            '/mineros/mining/find_blocks',
+        )
+        
         self.furnace_loc = (754.452, 102.0, 1666.395)
         
         self.tests()
@@ -45,11 +56,30 @@ class InteractionTestNode(Node):
         self.position = msg
 
     def tests(self):
-        self.test_furnace_info()
-        self.test_update_furnace()
+        # self.test_furnace_info()
+        # self.test_update_furnace()
+        self.test_get_recipe()
         
         self.destroy_node()
         rclpy.shutdown()
+    
+    def test_get_recipe(self):
+        req = Recipe.Request()
+        
+        diamond_pickaxe = Item()
+        diamond_pickaxe.id = 799
+        diamond_pickaxe.count = 1
+        req.item = diamond_pickaxe
+        
+        crafting_table_loc = self.find_blocks(182, 1)[0]
+        assert crafting_table_loc is not None
+        req.crafting_table_location = crafting_table_loc
+        req.crafting_table = True
+        
+        future = self.get_recipe_client.call_async(req)
+        rclpy.spin_until_future_complete(self, future)
+        self.get_logger().info(f'{future.result()}')
+        
 
     def test_furnace_info(self):
         self.get_logger().info('Testing furnace info')
@@ -94,7 +124,18 @@ class InteractionTestNode(Node):
         new: Furnace = self.test_furnace_info()
         assert item_equal(new.fuel_item, req.furnace.fuel_item)
         
-        
+    def find_blocks(self, blockid: int, count: int) -> List[Pose]:
+        self.get_logger().info('Find blocks')
+        block_search = FindBlocks.Request()
+        block_search.blockid = blockid
+        block_search.count = count
+
+        while not self.find_block_client.wait_for_service(timeout_sec=1.0):
+            self.get_logger().info('Waiting for service')
+        future = self.find_block_client.call_async(block_search)
+        rclpy.spin_until_future_complete(self, future)
+        blocks = future.result()
+        return blocks.blocks.poses
 
 def main(args=None):
     rclpy.init(args=args)
