@@ -20,6 +20,7 @@ mineflayer = require('mineflayer')
 pathfinder = require('mineflayer-pathfinder')
 toolPlugin = require('mineflayer-tool').plugin
 collectBlock = require('mineflayer-collectblock').plugin
+toolPlugin = require('mineflayer-tool').plugin
 Vec3 = require('vec3').Vec3
 
 bot = mineflayer.createBot(
@@ -27,6 +28,7 @@ bot = mineflayer.createBot(
 bot.loadPlugin(pathfinder.pathfinder)
 bot.loadPlugin(toolPlugin)
 bot.loadPlugin(collectBlock)
+bot.loadPlugin(toolPlugin)
 
 # The spawn event
 once(bot, 'login')
@@ -45,7 +47,6 @@ is to bussy wait on falgs, the below events set the flags whenever a new event i
 """
 goal_reached = False
 
-
 @On(bot, 'goal_reached')
 def on_goal_reached(_, goal):
     print(f'Goal reached')
@@ -56,7 +57,6 @@ def on_goal_reached(_, goal):
 
 digging_completed = False
 
-
 @On(bot, 'diggingCompleted')
 def on_digging_completed(_, block):
     global digging_completed
@@ -64,6 +64,19 @@ def on_digging_completed(_, block):
     digging_completed = True
     bot.chat('I finished digging')
 
+
+item_wanted = False
+item_goals = set()
+
+@On(bot, 'itemDrop')
+def on_item_drop(_, entity):
+    if item_wanted:
+        entity_pos = entity.position
+        distance = bot.entity.position.distanceTo(entity_pos)
+        if distance > 6:
+            return
+        global item_goals
+        item_goals.add(entity)
 
 class MinerosMain(Node):
     def __init__(self):
@@ -197,18 +210,32 @@ class MinerosMain(Node):
                 return
         goal_reached = False
 
-    def spin_for_digging(self, block):
-        global digging_completed
+    def spin_for_collect_block(self, block):
+        global item_wanted
+        global digging_completed    
+        global item_goals
+        
         start = time.time()
         time_to_dig = bot.digTime(block) * 10**(-6) + 0.5
 
         while not digging_completed:
             time.sleep(0.1)
             if time.time() - start > time_to_dig:
-                self.get_logger().info("Digging timeout")
-                return
-        digging_completed = False
+                self.get_logger().warning("Digging timeout")
+                break
+        
+        start = time.time()
+        while len(item_goals) == 0:
+            time.sleep(0.1)
+            if time.time() - start > self.goal_timeout/10:
+                self.get_logger().warning("item drop timeout")
+                break
+        print(f'item goals: {item_goals}')
 
+        time.sleep(0.1)
+        digging_completed = False
+        item_wanted = False
+        
     def calculate_wait_time(self, target: Vec3):
         """Calculates the time it takes to get to a target position on average"""
         current_position = bot.entity.position
@@ -325,22 +352,55 @@ class MinerosMain(Node):
         return response
 
     def mine_block_callback(self, request: MineBlock.Request, response: MineBlock.Response):
+        def test_can_harvest(block):
+            held_item = bot.heldItem
+            
+            if held_item is None:
+                can_harvest = block.canHarvest(None)
+            else:
+                can_harvest = block.canHarvest(held_item.type)
+            if can_harvest is None:
+                can_harvest = False
+
+            return can_harvest
+        
+        self.get_logger().info(f"Mine block: {request.block}")
         pose: Pose = request.block
 
         vec = Vec3(pose.position.x, pose.position.y, pose.position.z)
         block = bot.blockAt(vec)
 
-        # Get to block
+        # == # Check if bot can harvest
+        bot.tool.equipForBlock(block)
+        can_harvest = test_can_harvest(block)
+        
+        if not can_harvest:
+            self.get_logger().info(f"Can't harvest block: {block}")
+            response.success = False
+            return response
+        
+        # == # Get to block
         bot.pathfinder.setGoal(None)
         goal = pathfinder.goals.GoalLookAtBlock(block.position, bot.world)
         bot.pathfinder.setGoal(goal)
         self.spin_for_goal()
+        
+        can_dig = bot.canDigBlock(block)
+        if not can_dig:
+            self.get_logger().info(f"Can't mine block: {block}")
+            response.success = False
+            return response
+        
+        # must re-equip tool after goal reached pathfinder may have unequipped it
+        bot.tool.equipForBlock(block)
+        time.sleep(0.05)
 
         try:
-            global block_to_monitor
-            block_to_monitor = block
-            bot.collectBlock.collect(block, timeout=20)
-            self.spin_for_digging(block)
+            global item_wanted
+            item_wanted = True # Tells the item drop event to add the item to the item_goals set
+            bot.dig(block)
+            self.spin_for_collect_block(block) 
+            self.pick_up_item(block) 
 
         except Exception as e:
             self.get_logger().error(f"Error collecting block: {e}")
@@ -351,7 +411,17 @@ class MinerosMain(Node):
 
         response.success = True
         return response
-
+    
+    def pick_up_item(self, item):
+        global item_goals
+        while len(item_goals) > 0:
+            item = item_goals.pop()
+            bot.collectBlock.collect(item, timeout=20)
+            time.sleep(0.1)
+            
+        global goal_reached
+        goal_reached = False
+            
     def inventory_contents_service_callback(self, request: Inventory.Request, response: Inventory.Response):
         items = bot.inventory.items()
         inventory = []
