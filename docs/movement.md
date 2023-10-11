@@ -12,9 +12,6 @@ Published with Empty message to `/mineros/set_position/reached` topic when the b
 # Move to look at block (x, y, z)
 To move to look at a block publish a `geometry_msgs/PoseStamped` message to the topic `'/mineros/set_look_at_block'`. This will cause to bot to move to look at the specified block position.
 
-# Find y corrdinate of ground floor for a position given x and z
-call `/mineros/findy` service with `mineros_inter/BlockInfo` message with the x and z coordinates set. The service will return a `geometry_msgs/Pose` message with all cordinates of the ground floor of the x and z position
-
 
 
 # Dimensions of motion

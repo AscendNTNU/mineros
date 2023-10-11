@@ -103,6 +103,12 @@ class MinerosMain(Node):
             '/mineros/findy',
             self.find_y_callback
         )
+        
+        self.block_info_service = self.create_service(
+            BlockInfo,
+            '/mineros/block_info',
+            self.block_info_callback
+        )
 
         self.set_potision = self.create_subscription(
             PoseStamped,
@@ -286,6 +292,24 @@ class MinerosMain(Node):
                     f'Found y: {previous_block.type}, {previous_block.position.y}, {iteration}')
                 response.block.block_pose.position.y = float(block.position.y)
                 return response
+        
+    def block_info_callback(self, request: BlockInfo, response: BlockInfo):
+        block_pos = Vec3(request.block_pose.position.x, request.block_pose.position.y, request.block_pose.position.z)
+        block = bot.blockAt(block_pos)
+        response.block = BlockPose()
+        
+        response.block.block = Item()
+        response.block.block.id = block.type
+        response.block.block.count = 1
+        response.block.block.display_name = block.name
+        
+        response.block.block_pose = Pose()
+        response.block.block_pose.position.x = float(block_pos.x)
+        response.block.block_pose.position.y = float(block_pos.y)
+        response.block.block_pose.position.z = float(block_pos.z)
+        
+        return response
+        
 
     def set_position_callback(self, msg: PoseStamped):
         self.get_logger().info(f"Set position")

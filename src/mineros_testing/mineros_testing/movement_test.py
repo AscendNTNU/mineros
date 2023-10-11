@@ -59,6 +59,11 @@ class MovementTestNode(Node):
             10
         )
         
+        self.block_info_client = self.create_client(
+            BlockInfo,
+            '/mineros/block_info'
+        )
+        
         self.tests()
 
     def position_cb(self, msg: PoseStamped):
@@ -77,10 +82,26 @@ class MovementTestNode(Node):
         # self.test_position_xyz(10)
         # self.test_position_xz(10)
         # self.test_composite()
-        self.test_look_at_block()
+        # self.test_look_at_block()
+        self.test_block_info()
 
         self.destroy_node()
         rclpy.shutdown()
+        
+    def test_block_info(self):
+        while self.position is None:
+            rclpy.spin_once(self, timeout_sec=0.1)
+        
+        for i in range(10):
+            req = BlockInfo.Request()
+            req.block_pose = self.position.pose
+            req.block_pose.position.x += float(i)
+            req.block_pose.position.y += float(i)
+            req.block_pose.position.z += float(i)
+            
+            future = self.block_info_client.call_async(req)
+            rclpy.spin_until_future_complete(self, future)
+            self.get_logger().info(f'{future.result()}')
                 
     def test_look_at_block(self):
         while self.position is None:
