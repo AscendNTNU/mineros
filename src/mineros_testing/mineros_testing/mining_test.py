@@ -63,14 +63,15 @@ class MiningTestNode(Node):
         self.position = msg
 
     def tests(self):
-        
-        # self.test_mine_block()
+        for i in range(5):
+            self.test_mine_block(blockid=179, count=1)
+            self.test_mine_block(blockid=41, count=1)
 
         # self.test_find_grass()
         # self.test_inventory()
         # self.test_place_block() 
-        self.test_craft_crafting_table()
-        self.test_craft_wood_axe()
+        # self.test_craft_crafting_table()
+        # self.test_craft_wood_axe()
 
         self.destroy_node()
         rclpy.shutdown()
@@ -94,7 +95,7 @@ class MiningTestNode(Node):
         self.get_logger().info(
             f'Found {len(blocks.blocks.poses)} grass blocks')
 
-    def test_mine_block(self, blockid=8, count=2):
+    def test_mine_block(self, blockid=46, count=2):
 
         blocks = self.find_blocks(blockid, count)
 
@@ -112,6 +113,7 @@ class MiningTestNode(Node):
         block_search = FindBlocks.Request()
         block_search.blockid = blockid
         block_search.count = count
+        block_search.max_distance = 30
 
         while not self.find_block_client.wait_for_service(timeout_sec=1.0):
             self.get_logger().info('Waiting for service')
