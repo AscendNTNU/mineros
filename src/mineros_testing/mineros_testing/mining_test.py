@@ -63,15 +63,16 @@ class MiningTestNode(Node):
         self.position = msg
 
     def tests(self):
-        for i in range(5):
-            self.test_mine_block(blockid=179, count=1)
-            self.test_mine_block(blockid=41, count=1)
+        # for i in range(5):
+        #     self.test_mine_block(blockid=179, count=1)
+        #     self.test_mine_block(blockid=41, count=1)
 
         # self.test_find_grass()
         # self.test_inventory()
         # self.test_place_block() 
         # self.test_craft_crafting_table()
         # self.test_craft_wood_axe()
+        self.test_craft_iron_pick()
 
         self.destroy_node()
         rclpy.shutdown()
@@ -262,6 +263,27 @@ class MiningTestNode(Node):
         rclpy.spin_until_future_complete(self, future)
         assert future.result().success
 
+    def test_craft_iron_pick(self):
+        
+        # Craft axe
+        crafting_req = Craft.Request()
+        item = Item()
+        item.id = 794
+        item.count = 1
+        crafting_req.item = item
+        crafting_req.crafting_table = True
+        crafting_req.danger_mode = True
+        
+        # Find crafting table
+        blocks = self.find_blocks(182, 1)
+        assert len(blocks) > 0
+        block: Pose = blocks[0]
+        crafting_req.crafting_table_location = block
+        
+        
+        future = self.craft_client.call_async(crafting_req)
+        rclpy.spin_until_future_complete(self, future)
+        assert future.result().success
         
 
 
