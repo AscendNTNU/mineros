@@ -21,7 +21,8 @@ setup(
     entry_points={
         'console_scripts': [
             'mineros_main = mineros.main:main',
-            'info_bot = mineros.info_bot:main'
+            'info_bot = mineros.info_bot:main',
+            'watchdog = mineros.watchdog_node:main'
         ]
     },
 )
