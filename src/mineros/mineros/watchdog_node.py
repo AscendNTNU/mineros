@@ -18,9 +18,7 @@ class WatchdogNode(Node):
             '/mineros/reboot',
             self.restart_mineros_cb
         )
-        
-        self.restart_mineros_cb(None, None)
-    
+            
     def restart_mineros_cb(self, request, response):
         FIND_NODE_PID = """ps aux | grep "/opt/ros/foxy/bin/ros2 run mineros mineros_main" | grep -v grep | awk '{print $2}'"""
         RUN_MINE_ROS = """ros2 run mineros mineros_main"""
