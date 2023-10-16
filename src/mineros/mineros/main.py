@@ -526,15 +526,18 @@ class MinerosMain(Node):
             crafting_table = None  # None is an alias for the player's inventory
 
         recipe = []
-        start = time.time()
-        while len(recipe) == 0:
-            recipe = list(bot.recipesFor(item.id, None, None, crafting_table))
-            time.sleep(0.05)
-            
-            if time.time() - start > self.digging_timeout:
-                self.get_logger().info(f"Can't craft item: {item.id}")
-                response.success = False
-                return response
+        if request.danger_mode:
+            recipe = list(bot.recipesAll(item.id, None, crafting_table))
+        else:
+            start = time.time()
+            while len(recipe) == 0:
+                recipe = list(bot.recipesFor(item.id, None, None, crafting_table))
+                time.sleep(0.05)
+                
+                if time.time() - start > self.digging_timeout:
+                    self.get_logger().info(f"Can't craft item: {item.id}")
+                    response.success = False
+                    return response
 
         bot.craft(recipe[0], item.count, crafting_table)
         time.sleep(0.05)
