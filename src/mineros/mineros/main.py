@@ -470,7 +470,6 @@ class MinerosMain(Node):
         response.success = self.place_block(block)
         return response
 
-    # TODO: placed block None fix
 
     def place_block(self, block: BlockPose):
         self.get_logger().info(f"Placing {block} ")
@@ -526,13 +525,16 @@ class MinerosMain(Node):
         else:
             crafting_table = None  # None is an alias for the player's inventory
 
-        recipe = list(bot.recipesFor(item.id, None, None, crafting_table))
-
-        self.get_logger().info(f"Recipe: {recipe}")
-        if len(recipe) == 0:
-            self.get_logger().info(f"Can't craft item: {item.id}")
-            response.success = False
-            return response
+        recipe = []
+        start = time.time()
+        while len(recipe) == 0:
+            recipe = list(bot.recipesFor(item.id, None, None, crafting_table))
+            time.sleep(0.05)
+            
+            if time.time() - start > self.digging_timeout:
+                self.get_logger().info(f"Can't craft item: {item.id}")
+                response.success = False
+                return response
 
         bot.craft(recipe[0], item.count, crafting_table)
         time.sleep(0.05)
