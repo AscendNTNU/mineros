@@ -28,7 +28,10 @@ class WatchdogNode(Node):
             self.do_command(RUN_MINE_ROS)
         except Exception as e:
             self.get_logger().error(f'{e}')
-            return False
+            response.success = False
+            return response
+        response.success = True
+        return response
     
     def do_command_with_output(self, command: str):
         output = subprocess.check_output(command, shell=True, universal_newlines=True)
