@@ -73,16 +73,16 @@ class MovementTestNode(Node):
         self.reached_count += 1
         
     def tests(self):
-        # for i in range(5):
-        #     self.get_logger().info(f'Stress test {i}')
-        #     self.test_position_xz(1, True)
-        #     rclpy.spin_once(self, timeout_sec=0.1)
-        # self.get_logger().info('Stress test passed')
+        for i in range(5):
+            self.get_logger().info(f'Stress test {i}')
+            self.test_position_xz(1, True)
+            rclpy.spin_once(self, timeout_sec=0.1)
+        self.get_logger().info('Stress test passed')
 
-        # self.test_position_xyz(10)
-        # self.test_position_xz(10)
-        # self.test_composite()
-        # self.test_look_at_block()
+        self.test_position_xyz(10)
+        self.test_position_xz(10)
+        self.test_composite()
+        self.test_look_at_block()
         self.test_block_info()
 
         self.destroy_node()

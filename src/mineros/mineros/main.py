@@ -84,7 +84,7 @@ class MinerosMain(Node):
         self.get_logger().info("Hello World!")
 
         self.declare_parameter('goal_acceptance', 1.0)
-        self.declare_parameter('goal_timeout', 30)
+        self.declare_parameter('goal_timeout', 10)
         self.declare_parameter('digging_timeout', 10)
 
         self.goal_acceptance = self.get_parameter('goal_acceptance').value
@@ -484,7 +484,7 @@ class MinerosMain(Node):
         self.get_logger().info(
             f"Placing block: {item.id} at {point} with {face_vector}")
         block = bot.blockAt(point)
-
+        
         # Get to block
         bot.pathfinder.setGoal(None)
         goal = pathfinder.goals.GoalPlaceBlock(block.position.plus(
@@ -495,7 +495,8 @@ class MinerosMain(Node):
         items = bot.inventory.items()
         item = list(filter(lambda i: i.type == item.id, items))
         if len(item) == 0:
-            self.get_logger().info(f"Can't place block: {block.block.id}")
+            self.get_logger().error(f"Can't place item: {item.id} on block: {block.type}")
+            self.get_logger().error(f"Either I dont have the item or the block is not placeable or the position wantes is impossible")
             return False
         item = item[0]
         bot.equip(item, 'hand')

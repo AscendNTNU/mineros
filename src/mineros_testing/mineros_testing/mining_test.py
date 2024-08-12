@@ -70,8 +70,8 @@ class MiningTestNode(Node):
         # self.test_find_grass()
         # self.test_inventory()
         # self.test_place_block() 
-        # self.test_craft_crafting_table()
-        # self.test_craft_wood_axe()
+        self.test_craft_crafting_table()
+        self.test_craft_wood_axe()
         self.test_craft_iron_pick()
 
         self.destroy_node()
@@ -188,14 +188,14 @@ class MiningTestNode(Node):
 
     def test_craft_crafting_table(self):
         self.get_logger().info('Crafting test started')
-        blocks = self.find_blocks(46, 4)
+        blocks = self.find_blocks(49, 4) # 49 is jungle log 
         self.get_logger().info(f'Found {len(blocks)} blocks')
         for block in blocks:
             self.mine_block(block)
         
         crafting_req = Craft.Request()
         item = Item()
-        item.id = 23
+        item.id = 26 # jungle planks
         item.count = 4
         
         crafting_req.item = item
@@ -226,7 +226,7 @@ class MiningTestNode(Node):
         # Craft planks
         crafting_req = Craft.Request()
         item = Item()
-        item.id = 23
+        item.id = 26
         item.count = 8
         crafting_req.item = item
         crafting_req.crafting_table = False
