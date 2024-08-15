@@ -73,20 +73,35 @@ class MovementTestNode(Node):
         self.reached_count += 1
         
     def tests(self):
-        for i in range(5):
-            self.get_logger().info(f'Stress test {i}')
-            self.test_position_xz(1, True)
-            rclpy.spin_once(self, timeout_sec=0.1)
-        self.get_logger().info('Stress test passed')
+        self.test_find_y()
+        
+        # for i in range(5):
+        #     self.get_logger().info(f'Stress test {i}')
+        #     self.test_position_xz(1, True)
+        #     rclpy.spin_once(self, timeout_sec=0.1)
+        # self.get_logger().info('Stress test passed')
 
-        self.test_position_xyz(10)
-        self.test_position_xz(10)
-        self.test_composite()
-        self.test_look_at_block()
-        self.test_block_info()
+        # self.test_position_xyz(10)
+        # self.test_position_xz(10)
+        # self.test_composite()
+        # self.test_look_at_block()
+        # self.test_block_info()
 
         self.destroy_node()
         rclpy.shutdown()
+        
+    def test_find_y(self):
+        req = BlockInfo.Request()
+        req.block_pose.position.x = 113.0
+        req.block_pose.position.y = 0.0
+        req.block_pose.position.z = 171.0
+        
+        self.get_logger().info('Finding y')
+        
+        future = self.find_y_client.call_async(req)
+        rclpy.spin_until_future_complete(self, future)
+        self.get_logger().info(f'{future.result()}')
+        
         
     def test_block_info(self):
         while self.position is None:
@@ -120,18 +135,18 @@ class MovementTestNode(Node):
             rclpy.spin_once(self, timeout_sec=0.1)
 
 
-    def test_find_y(self):
-        while self.position is None:
-            rclpy.spin_once(self, timeout_sec=0.1)
+    # def test_find_y(self):
+    #     while self.position is None:
+    #         rclpy.spin_once(self, timeout_sec=0.1)
             
-        req = BlockInfo.Request()
-        req.block_pose = self.position.pose
-        req.block_pose.position.y = 0.0
-        req.block_pose.position.z += 5.0
+    #     req = BlockInfo.Request()
+    #     req.block_pose = self.position.pose
+    #     req.block_pose.position.y = 0.0
+    #     req.block_pose.position.z += 5.0
         
-        future = self.find_y_client.call_async(req)
-        rclpy.spin_until_future_complete(self, future)
-        self.get_logger().info(f'{future.result()}')
+    #     future = self.find_y_client.call_async(req)
+    #     rclpy.spin_until_future_complete(self, future)
+    #     self.get_logger().info(f'{future.result()}')
 
     def test_position_xyz(self, sleep, stress_test=False):
         while self.position is None:

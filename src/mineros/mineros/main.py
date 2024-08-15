@@ -20,7 +20,6 @@ mineflayer = require('mineflayer')
 pathfinder = require('mineflayer-pathfinder')
 toolPlugin = require('mineflayer-tool').plugin
 collectBlock = require('mineflayer-collectblock').plugin
-toolPlugin = require('mineflayer-tool').plugin
 Vec3 = require('vec3').Vec3
 
 bot = mineflayer.createBot(
