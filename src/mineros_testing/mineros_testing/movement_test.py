@@ -12,7 +12,7 @@ from mavros_msgs.msg import Waypoint, WaypointList, WaypointReached, State
 from std_msgs.msg import Empty
 from geometry_msgs.msg import PoseStamped, PoseArray, Pose
 
-from mineros_inter.srv import BlockInfo
+from mineros_inter.srv import BlockInfo, MoveTo
 
 
 class MovementTestNode(Node):
@@ -27,16 +27,9 @@ class MovementTestNode(Node):
             10
         )
 
-        self.set_position_pub = self.create_publisher(
-            PoseStamped,
+        self.set_position_client = self.create_client(
+            MoveTo,
             '/mineros/set_position',
-            10
-        )
-
-        self.set_position_composite_pub = self.create_publisher(
-            PoseArray,
-            '/mineros/set_position/composite',
-            10
         )
 
         self.find_y_client = self.create_client(
@@ -44,19 +37,11 @@ class MovementTestNode(Node):
             '/mineros/findy'
         )
         
-        self.reached_count = 0
-        self.position_reached_publisher = self.create_subscription(
-           Empty,
-           '/mineros/set_position/reached',
-           self.position_reached_cb,
-           10
-        )
-        self.furnace_loc = (754.452, 102.0, 1666.395)
+        self.furnace_loc = (100.0, 70.0, 188.0)
         
-        self.set_look_at_block = self.create_publisher(
-            PoseStamped,
-            '/mineros/set_look_at_block',
-            10
+        self.look_at_block = self.create_client(
+            MoveTo,
+            '/mineros/look_at_block',
         )
         
         self.block_info_client = self.create_client(
@@ -75,16 +60,12 @@ class MovementTestNode(Node):
     def tests(self):
         self.test_find_y()
         
-        # for i in range(5):
-        #     self.get_logger().info(f'Stress test {i}')
-        #     self.test_position_xz(1, True)
-        #     rclpy.spin_once(self, timeout_sec=0.1)
-        # self.get_logger().info('Stress test passed')
-
-        # self.test_position_xyz(10)
-        # self.test_position_xz(10)
-        # self.test_composite()
-        # self.test_look_at_block()
+        for i in range(5):
+            self.get_logger().info(f'Stress test {i}')
+            self.test_position_xz(1, True)
+        self.get_logger().info('Stress test passed')
+        
+        self.test_look_at_block()
         # self.test_block_info()
 
         self.destroy_node()
@@ -128,11 +109,14 @@ class MovementTestNode(Node):
         ps.pose.position.x = self.furnace_loc[0]
         ps.pose.position.y = self.furnace_loc[1]
         ps.pose.position.z = self.furnace_loc[2]
-        previous_reached_count = self.reached_count
-        self.set_look_at_block.publish(ps)
         
-        while self.reached_count == previous_reached_count:
-            rclpy.spin_once(self, timeout_sec=0.1)
+        move_to_command = MoveTo.Request()
+        move_to_command.pose = ps
+        
+        future = self.look_at_block.call_async(move_to_command)
+        rclpy.spin_until_future_complete(self, future)
+        self.get_logger().info(f'{future.result()}')
+        
 
 
     # def test_find_y(self):
@@ -154,13 +138,16 @@ class MovementTestNode(Node):
             rclpy.spin_once(self, timeout_sec=0.1)
 
         ps = PoseStamped()
-        ps.pose.position.x = self.position.pose.position.x + 1
+        ps.pose.position.x = self.position.pose.position.x + 10
         ps.pose.position.y = self.position.pose.position.y
-        ps.pose.position.z = self.position.pose.position.z + 1
-        previous_reached_count = self.reached_count
-        self.set_position_pub.publish(ps)
-        while self.reached_count == previous_reached_count:
-            rclpy.spin_once(self, timeout_sec=0.1)
+        ps.pose.position.z = self.position.pose.position.z + 10
+
+        move_to_command = MoveTo.Request()
+        move_to_command.pose = ps
+        self.set_position_client.wait_for_service()
+        future = self.set_position_client.call_async(move_to_command)
+        rclpy.spin_until_future_complete(self, future)
+        print(future.result())
 
         if not stress_test:
             assert self.distance_between_2_points(self.position, ps) <= 2
@@ -174,12 +161,14 @@ class MovementTestNode(Node):
         ps.pose.position.x = self.position.pose.position.x + 1
         ps.pose.position.y = -1.0
         ps.pose.position.z = self.position.pose.position.z + 1
-        previous_reached_count = self.reached_count
-        self.set_position_pub.publish(ps)
-
-        while self.reached_count == previous_reached_count:
-            rclpy.spin_once(self, timeout_sec=0.1)
-
+        
+        move_to_command = MoveTo.Request()
+        move_to_command.pose = ps
+    
+        future = self.set_position_client.call_async(move_to_command)
+        rclpy.spin_until_future_complete(self, future)
+        print(future.result())
+        
         if not stress_test:
             ps.pose.position.y = self.position.pose.position.y
             assert self.distance_between_2_points(self.position, ps) <= 2

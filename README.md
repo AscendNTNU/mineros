@@ -15,15 +15,33 @@ MineROS allows the user to fully control a mc bot using ros services and topics,
 ### Install correct minecraft version
 Google this yourself
 
-### Install javascript deps
-``` pip install javascript ```
-
 ### Install nodejs
 ``` sudo apt install nodejs ```
+
 ``` sudo apt install npm ```
+
+Make sure that this is npm version 20. Which should be the case if you run this on ubuntu 22
 
 ### Install npm packages
 ``` npm install --save mineflayer-collectblock ```
+
+``` npm npm i rclnodejs ```
+
+### Building the mineros bot
+
+1) Init submodules to pull the mineros interfaces
+```bash
+git submodule update --init --recursive
+git submodule update --recursive
+```
+
+2) from root run `colcon build` to build the ros packages
+
+3) Generate the javascript Ros message interface
+```bash
+cd src/mineros-js
+npx generate-ros-messages
+```
 
 
 ## Running
