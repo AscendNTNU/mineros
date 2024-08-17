@@ -9,15 +9,5 @@ call `/mineros/interaction/craft` with a `mineros_inter/Craft` request. The requ
 returns:
 - `bool success` - Whether the operation was successful or not
 
-# Request item
-call `/mineros/interaction/request` with a `mineros_inter/Request` request. The request has the following params:
-- `mineros_inter/Item` - item to request
-- `bool crafting_table` - if the bot should use a crafting table or not
-- `geometry_msgs/Pose crafting_table_location` -  The location of the crafting table to use, needs only be specified if crafting_table is true
-
-returns:
-- `bool success` - Whether the operation was successful or not
-- `mineros_inter/Recipe[]` - The recipes it found
-
 ## Note on internals
 Internally mineflayer looks up the recipe of the item and checks if the bot has the items required to craft it, if it does it crafts if not it returns false.

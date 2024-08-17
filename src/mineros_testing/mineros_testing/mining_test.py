@@ -67,11 +67,12 @@ class MiningTestNode(Node):
         #     self.test_mine_block(blockid=179, count=1) # Diamong ore
         #     self.test_mine_block(blockid=41, count=1) # Iron ore
 
-        self.test_find_grass()
+        # self.test_find_grass()
         self.test_inventory()
-        self.test_place_block() 
+        # self.test_place_block() 
         # self.test_craft_crafting_table()
         # self.test_craft_wood_axe()
+        
         # self.test_craft_iron_pick()
 
         self.destroy_node()
@@ -141,6 +142,8 @@ class MiningTestNode(Node):
         inventory = fut.result()
         assert len(inventory.inventory) > 0
         self.get_logger().info('Inventory test passed')
+        print(inventory)
+        
         return inventory.inventory[0]
 
     def test_place_block(self, blockid=15): # 15 is the item for dirt

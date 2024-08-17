@@ -23,10 +23,14 @@ bot.loadPlugin(toolPlugin)
 bot.loadPlugin(collectBlock)
 bot.loadPlugin(toolPlugin)
 
+
 bot.once('spawn', () => {
   bot.chat('Hello, I am MinerosBot')
   const defaultMove = new Movements(bot)
+  defaultMove.allow1by1towers = false
   bot.pathfinder.setMovements(defaultMove)
+bot.pathfinder.thinkTimeout = 10000
+
   main()
 })
 
@@ -109,6 +113,20 @@ class MinerosBot {
       'mineros_inter/srv/PlaceBlock',
       '/mineros/interaction/place_block',
       this.placeBlockCallback
+    )
+
+    // Crafting
+
+    this.craftItemService = this.node.createService(
+      'mineros_inter/srv/Craft',
+      '/mineros/interaction/craft',
+      this.craftItemCallback
+    )
+
+    this.getRecipeService = this.node.createService(
+      'mineros_inter/srv/Recipe',
+      '/mineros/interaction/recipe',
+      this.getRecipeCallback
     )
 
     // Spatial Awareness
@@ -195,6 +213,15 @@ class MinerosBot {
   }
 
   async setPositionCallback (request, response) {
+    console.log(
+      'Movind to: ' +
+        request.pose.pose.position.x +
+        ' ' +
+        request.pose.pose.position.y +
+        ' ' +
+        request.pose.pose.position.z
+    )
+
     // Clear bots goal
     let result = response.template
 
@@ -236,6 +263,8 @@ class MinerosBot {
       request.pose.pose.position.z
     )
     let block = bot.blockAt(block_pose)
+    console.log('Looking at block: ' + block.displayName)
+
     let goal = new GoalLookAtBlock(block.position, bot.world)
 
     try {
@@ -248,6 +277,8 @@ class MinerosBot {
   }
 
   findBlocksCallback (request, response) {
+    console.log('Find Blocks callback')
+
     let result = response.template
     let options = {
       matching: request.blockid,
@@ -285,6 +316,7 @@ class MinerosBot {
         request.block.position.z
       )
     )
+    console.log('Mining block: ' + block.displayName)
 
     // Check if the block is mineable
     await bot.tool.equipForBlock(block)
@@ -336,7 +368,6 @@ class MinerosBot {
 
     for (let i = 0; i < entities.length; i++) {
       let entity = entities[i]
-      console.log(entity.name)
       if (entity.name == 'item') {
         if (entity.position.distanceTo(bot.entity.position) < 10) {
           // Goto the entity position
@@ -363,6 +394,7 @@ class MinerosBot {
   }
 
   inventoryCallback (request, response) {
+    console.log('Inventory Callback')
     let result = response.template
 
     let inventory = bot.inventory.items()
@@ -384,6 +416,7 @@ class MinerosBot {
       request.block.block_pose.position.z
     )
     let block = bot.blockAt(block_pose)
+    console.log('Placing block: ' + block.displayName)
 
     if (block.name == 'air') {
       console.log('Cannot place block on air block')
@@ -412,7 +445,10 @@ class MinerosBot {
 
     // Get to block
     bot.pathfinder.setGoal(null)
-    let goal = new GoalPlaceBlock(block.position.plus(faceVector) , bot.world, {range: 4, half: 'top'})
+    let goal = new GoalPlaceBlock(block.position.plus(faceVector), bot.world, {
+      range: 4,
+      half: 'top'
+    })
     try {
       await bot.pathfinder.goto(goal)
     } catch (error) {
@@ -423,7 +459,7 @@ class MinerosBot {
     }
 
     // Place the block
-    try{
+    try {
       await bot.equip(mcItem, 'hand')
       await bot.placeBlock(block, faceVector)
     } catch (error) {
@@ -437,6 +473,67 @@ class MinerosBot {
     response.send(result)
   }
 
+  async craftItemCallback (request, response) {
+    console.log('Crafting: ' + request.item.id)
+    let result = response.template
+
+    let craftingTable = null
+    if (request.crafting_table) {
+      craftingTable = bot.blockAt(
+        new Vec3(
+          request.crafting_table_location.position.x,
+          request.crafting_table_location.position.y,
+          request.crafting_table_location.position.z
+        )
+      )
+    }
+
+    let recipes = bot.recipesAll(request.item.id, null, craftingTable)
+    if (recipes.length == 0) {
+      result.success = false
+      response.send(result)
+      return
+    }
+
+    for (let i = 0; i < recipes.length; i++) {
+      try {
+        await bot.craft(recipes[i], request.item.count, craftingTable)
+        result.success = true
+        response.send(result)
+        return
+      } catch (error) {
+        result.success = false
+      }
+    }
+  }
+
+  getRecipeCallback (request, response) {
+    console.log('Get Recipe Callback')
+    let result = response.template
+
+    let craftingTable = null
+    if (request.crafting_table) {
+      craftingTable = bot.blockAt(
+        new Vec3(
+          request.crafting_table_location.position.x,
+          request.crafting_table_location.position.y,
+          request.crafting_table_location.position.z
+        )
+      )
+    }
+
+    let recipe = bot.recipesAll(request.item.id, null, craftingTable)
+
+    let returnedRecipes = []
+    for (let i = 0; i < recipe.length; i++) {
+      let recipeMsg = recipeToRecipeMsg(recipe[i])
+      returnedRecipes.push(recipeMsg)
+    }
+
+    result.recipes = returnedRecipes
+    result.success = returnedRecipes.length > 0
+    response.send(result)
+  }
 }
 
 // Util functions
@@ -450,7 +547,54 @@ function itemToItemMsg (item) {
   itemMsg.count = item.count
   itemMsg.slot = item.slot
   itemMsg.metadata = item.metadata
+  itemMsg.display_name = item.displayName
   return itemMsg
+}
+
+function recipeItemToItemMsg (recipeItem) {
+  let itemMsg = rclnodejs.createMessageObject('mineros_inter/msg/Item')
+  if (recipeItem == null) {
+    return
+  }
+
+  itemMsg.id = recipeItem.id
+  itemMsg.count = recipeItem.count
+  itemMsg.slot = recipeItem.slot
+  itemMsg.metadata = recipeItem.metadata
+  itemMsg.display_name = recipeItem.displayName
+  return itemMsg
+}
+
+function recipeToRecipeMsg (recipe) {
+  let recipeMsg = rclnodejs.createMessageObject('mineros_inter/msg/Recipe')
+  recipeMsg.output_item = recipeItemToItemMsg(recipe.result)
+  recipeMsg.input_items = []
+  let items = []
+
+  for (let row = 0; row < recipe.inShape.length; row++) {
+    let rowItems = recipe.inShape[row]
+    for (let col = 0; col < rowItems.length; col++) {
+      let item = rowItems[col]
+      items.push(item)
+    }
+  }
+
+  const itemIds = items.map(item => item.id)
+  const uniqueItemIds = [...new Set(itemIds)]
+
+  for (let i = 0; i < uniqueItemIds.length; i++) {
+    if (uniqueItemIds[i] == -1) {
+      continue
+    }
+    let itemMsg = rclnodejs.createMessageObject('mineros_inter/msg/Item')
+    itemMsg.id = uniqueItemIds[i]
+    itemMsg.count = itemIds.filter(id => id == uniqueItemIds[i]).length
+    itemMsg.metadata = 0
+    itemMsg.display_name = items.find(item => item.id == uniqueItemIds[i]).displayName
+    recipeMsg.input_items.push(itemMsg)
+  }
+
+  return recipeMsg
 }
 
 async function main () {

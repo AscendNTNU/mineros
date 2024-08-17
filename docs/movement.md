@@ -3,7 +3,7 @@
 To move to one position call the service `/mineros/set_position` with the service type `mineros_inter/srv/MoveTo`. The service returns true once the position is reached, If the move to command fails it returns false.
 
 
-# Move to look at block (x, y, z)
+# Move to and look at block (x, y, z)
 To move to look at a block call the service `/mineros/look_at_block` with the service type `mineros_inter/srv/MoveTo`. The service will move the bot to look at the block at x,y,z. Usefull when attempting to mine or place a block. The service returns true once the position is reached, If the move to command fails it returns false.
 
 # Service Definition

@@ -21,7 +21,7 @@ def recipe_to_recipe_msg(recipe) -> Recipe:
     
     recipe_msg.input_items = []
     items = []
-    items_in_shape = [items.extend(row) for row in recipe.inShape]
+    [items.extend(row) for row in recipe.inShape]
     item_ids = list(map(lambda item: item.id, items))
     unique_item_ids = set(item_ids)
 
