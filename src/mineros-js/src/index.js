@@ -85,6 +85,25 @@ class MinerosBot {
       this.lookAtBlockCallback
     )
 
+    // Mining Control
+    this.findBlocksService = this.node.createService(
+      'mineros_inter/srv/FindBlocks',
+      '/mineros/mining/find_blocks',
+      this.findBlocksCallback
+    )
+
+    this.mineBlockService = this.node.createService(
+      'mineros_inter/srv/MineBlock',
+      '/mineros/mining/mine_block',
+      this.mineBlockCallback
+    )
+
+    this.inventoryService = this.node.createService(
+      'mineros_inter/srv/Inventory',
+      '/mineros/inventory/contents',
+      this.inventoryCallback
+    )
+
     // Spatial Awareness
     this.blockInfoService = this.node.createService(
       'mineros_inter/srv/BlockInfo',
@@ -220,6 +239,144 @@ class MinerosBot {
     }
     response.send(result)
   }
+
+  findBlocksCallback (request, response) {
+    let result = response.template
+    let options = {
+      matching: request.blockid,
+      maxDistance: request.max_distance,
+      count: request.count
+    }
+
+    let blocks = bot.findBlocks(options)
+
+    let poseArrayMsg = rclnodejs.createMessageObject(
+      'geometry_msgs/msg/PoseArray'
+    )
+    let poses = []
+    for (let i = 0; i < blocks.length; i++) {
+      let block_pos = blocks[i]
+      let poseMsg = rclnodejs.createMessageObject('geometry_msgs/msg/Pose')
+      poseMsg.position.x = block_pos.x
+      poseMsg.position.y = block_pos.y
+      poseMsg.position.z = block_pos.z
+      poses.push(poseMsg)
+    }
+    poseArrayMsg.poses = poses
+    result.blocks = poseArrayMsg
+
+    response.send(result)
+  }
+
+  async mineBlockCallback (request, response) {
+    let result = response.template
+
+    let block = bot.blockAt(
+      new Vec3(
+        request.block.position.x,
+        request.block.position.y,
+        request.block.position.z
+      )
+    )
+
+    // Check if the block is mineable
+    await bot.tool.equipForBlock(block)
+    let heldItem = bot.heldItem
+    if (!block.canHarvest(heldItem.type)) {
+      console.log(
+        'Cannot harvest block: ' +
+          block.displayName +
+          ' with ' +
+          heldItem.displayName
+      )
+
+      result.success = false
+      response.send(result)
+      return
+    }
+
+    // get To Block
+    bot.pathfinder.setGoal(null)
+    let goal = new GoalLookAtBlock(block.position, bot.world)
+    await bot.pathfinder.goto(goal)
+
+    // Check if the bot is close enough to the block to dig it
+    await bot.tool.equipForBlock(block) // pathfinder may have changed the tool
+    if (!bot.canDigBlock(block)) {
+      console.log('Cannot dig block: ' + block.displayName)
+      result.success = false
+      response.send(result)
+      return
+    }
+
+    // Dig the block
+    try {
+      await bot.dig(block)      
+    } catch (error) {
+      console.log('Error collecting block: ' + block.displayName)
+      result.success = false
+      response.send(result)
+      return
+    }
+
+    // sleep to let the block drop
+    await new Promise((resolve) => setTimeout(resolve, 200))
+
+    // Collect the item
+    let nearbyentities = bot.entities
+    let entities = Object.values(nearbyentities)
+    // console.log(entities)
+
+    for (let i = 0; i < entities.length; i++) {
+      let entity = entities[i]
+      console.log(entity.name)
+      if (entity.name == 'item') {
+        if (entity.position.distanceTo(bot.entity.position) < 10) {
+          // Goto the entity position
+          bot.pathfinder.setGoal(null)
+          let goal = new GoalNear(entity.position.x, entity.position.y, entity.position.z, 0.5)
+          try {
+            await bot.pathfinder.goto(goal)
+          } catch (error) {
+            result.success = false
+            response.send(result)
+            return
+          }
+        }
+      }
+    }
+    
+    result.success = true
+    response.send(result)
+  }
+
+  inventoryCallback (request, response) {
+    let result = response.template
+
+    let inventory = bot.inventory.items()
+    for (let i = 0; i < inventory.length; i++) {
+      let item = inventory[i]
+      let itemMsg = itemToItemMsg(item)
+      result.inventory.push(itemMsg)
+    }
+
+    response.send(result)
+  }
+
+}
+
+// Util functions
+function itemToItemMsg (item) {
+  let itemMsg = rclnodejs.createMessageObject('mineros_inter/msg/Item')
+  if (item == null) {
+    return itemMsg
+  }
+
+  itemMsg.id = item.type
+  itemMsg.count = item.count
+  itemMsg.slot = item.slot
+  itemMsg.metadata = item.metadata
+  return itemMsg
 }
 
 async function main () {
