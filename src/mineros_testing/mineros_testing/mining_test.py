@@ -63,14 +63,15 @@ class MiningTestNode(Node):
         self.position = msg
 
     def tests(self):
-        # for i in range(5):
-        #     self.test_mine_block(blockid=179, count=1) # Diamong ore
-        #     self.test_mine_block(blockid=41, count=1) # Iron ore
+        for i in range(5):
+            self.test_mine_block(blockid=179, count=1) # Diamong ore
+            self.test_mine_block(blockid=41, count=1) # Iron ore
 
         # self.test_find_grass()
         self.test_inventory()
-        # self.test_place_block() 
-        # self.test_craft_crafting_table()
+        self.test_place_block() 
+        self.test_place_block() 
+        self.test_craft_crafting_table()
         # self.test_craft_wood_axe()
         
         # self.test_craft_iron_pick()

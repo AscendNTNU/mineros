@@ -1,11 +1,10 @@
 # MineROS relase 1.0 documentation
 
-MineROS allows the user to fully control a mc bot using ros services and topics, The current version of MineROS is made for ROS2 Foxy and is still in development. The purpose of this project is to give a conducive learning environment for people who want to learn ROS2 and python. Specifically for people who want to learn mavros, as this is what the project attempts to mock.
+MineROS allows the user to fully control a mc bot using ros services and topics, The current version of MineROS is made for ROS2 Humble and is still in development. The purpose of this project is to give a conducive learning environment for people who want to learn ROS2 and python. Specifically for people who want to learn mavros, as this is what the project attempts to mock.
 
 ## Dependencies
 - ROS2 Humble
 - Python3
-- Javascript
 - Nodejs version >= 20
 - Mineflayer Api
 - Minecraft version = 1.20
@@ -46,7 +45,9 @@ npx generate-ros-messages
 
 ## Running
 Make sure a minecraft server is running on localhost:25565
-``` ros2 run mineros mineros_main ```
+` ros2 launch src/mineros-js/launch/example.launch.py `
+
+Then launch your own script to control the bot
 
 ___
 # API doc
