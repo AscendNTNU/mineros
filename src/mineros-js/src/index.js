@@ -3,7 +3,7 @@ const mineflayer = require('mineflayer')
 const {
   pathfinder,
   Movements,
-  goals: { GoalNearXZ, GoalNear, GoalLookAtBlock }
+  goals: { GoalNearXZ, GoalNear, GoalLookAtBlock, GoalPlaceBlock }
 } = require('mineflayer-pathfinder')
 const toolPlugin = require('mineflayer-tool').plugin
 const collectBlock = require('mineflayer-collectblock').plugin
@@ -104,6 +104,13 @@ class MinerosBot {
       this.inventoryCallback
     )
 
+    // Place Block
+    this.placeBlockService = this.node.createService(
+      'mineros_inter/srv/PlaceBlock',
+      '/mineros/interaction/place_block',
+      this.placeBlockCallback
+    )
+
     // Spatial Awareness
     this.blockInfoService = this.node.createService(
       'mineros_inter/srv/BlockInfo',
@@ -168,20 +175,20 @@ class MinerosBot {
   async findBlockInfoCallback (request, response) {
     let result = response.template
 
-    let block_pos = new Vec3(
+    let block_pose = new Vec3(
       request.block_pose.position.x,
       request.block_pose.position.y,
       request.block_pose.position.z
     )
-    let block = bot.blockAt(block_pos)
+    let block = bot.blockAt(block_pose)
 
     result.block.block.id = block.type
     result.block.block.count = 1
     result.block.block.display_name = block.displayName
 
-    result.block.block_pose.position.x = block_pos.x
-    result.block.block_pose.position.y = block_pos.y
-    result.block.block_pose.position.z = block_pos.z
+    result.block.block_pose.position.x = block_pose.x
+    result.block.block_pose.position.y = block_pose.y
+    result.block.block_pose.position.z = block_pose.z
 
     response.send(result)
     return
@@ -223,12 +230,12 @@ class MinerosBot {
     let result = response.template
 
     bot.pathfinder.setGoal(null) // Clear bot goal
-    let block_pos = new Vec3(
+    let block_pose = new Vec3(
       request.pose.pose.position.x,
       request.pose.pose.position.y,
       request.pose.pose.position.z
     )
-    let block = bot.blockAt(block_pos)
+    let block = bot.blockAt(block_pose)
     let goal = new GoalLookAtBlock(block.position, bot.world)
 
     try {
@@ -255,11 +262,11 @@ class MinerosBot {
     )
     let poses = []
     for (let i = 0; i < blocks.length; i++) {
-      let block_pos = blocks[i]
+      let block_pose = blocks[i]
       let poseMsg = rclnodejs.createMessageObject('geometry_msgs/msg/Pose')
-      poseMsg.position.x = block_pos.x
-      poseMsg.position.y = block_pos.y
-      poseMsg.position.z = block_pos.z
+      poseMsg.position.x = block_pose.x
+      poseMsg.position.y = block_pose.y
+      poseMsg.position.z = block_pose.z
       poses.push(poseMsg)
     }
     poseArrayMsg.poses = poses
@@ -311,7 +318,7 @@ class MinerosBot {
 
     // Dig the block
     try {
-      await bot.dig(block)      
+      await bot.dig(block)
     } catch (error) {
       console.log('Error collecting block: ' + block.displayName)
       result.success = false
@@ -320,7 +327,7 @@ class MinerosBot {
     }
 
     // sleep to let the block drop
-    await new Promise((resolve) => setTimeout(resolve, 200))
+    await new Promise(resolve => setTimeout(resolve, 200))
 
     // Collect the item
     let nearbyentities = bot.entities
@@ -334,7 +341,12 @@ class MinerosBot {
         if (entity.position.distanceTo(bot.entity.position) < 10) {
           // Goto the entity position
           bot.pathfinder.setGoal(null)
-          let goal = new GoalNear(entity.position.x, entity.position.y, entity.position.z, 0.5)
+          let goal = new GoalNear(
+            entity.position.x,
+            entity.position.y,
+            entity.position.z,
+            0.5
+          )
           try {
             await bot.pathfinder.goto(goal)
           } catch (error) {
@@ -345,7 +357,7 @@ class MinerosBot {
         }
       }
     }
-    
+
     result.success = true
     response.send(result)
   }
@@ -360,6 +372,68 @@ class MinerosBot {
       result.inventory.push(itemMsg)
     }
 
+    response.send(result)
+  }
+
+  async placeBlockCallback (request, response) {
+    let result = response.template
+
+    let block_pose = new Vec3(
+      request.block.block_pose.position.x,
+      request.block.block_pose.position.y,
+      request.block.block_pose.position.z
+    )
+    let block = bot.blockAt(block_pose)
+
+    if (block.name == 'air') {
+      console.log('Cannot place block on air block')
+      result.success = false
+      response.send(result)
+      return
+    }
+
+    let item = request.block.block
+    let faceVector = new Vec3(
+      request.block.face_vector.x,
+      request.block.face_vector.y,
+      request.block.face_vector.z
+    )
+
+    // Check if bot has the item in inventory
+    let inventory = bot.inventory.items()
+    let mcItem = inventory.find(invItem => invItem.type == item.id)
+
+    if (mcItem == null) {
+      console.log('Bot does not have item in inventory')
+      result.success = false
+      response.send(result)
+      return
+    }
+
+    // Get to block
+    bot.pathfinder.setGoal(null)
+    let goal = new GoalPlaceBlock(block.position.plus(faceVector) , bot.world, {range: 4, half: 'top'})
+    try {
+      await bot.pathfinder.goto(goal)
+    } catch (error) {
+      console.log('Error getting to block  to place block')
+      result.success = false
+      response.send(result)
+      return
+    }
+
+    // Place the block
+    try{
+      await bot.equip(mcItem, 'hand')
+      await bot.placeBlock(block, faceVector)
+    } catch (error) {
+      console.log('Error placing block')
+      result.success = false
+      response.send(result)
+      return
+    }
+
+    result.success = true
     response.send(result)
   }
 

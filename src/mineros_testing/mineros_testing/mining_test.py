@@ -69,7 +69,7 @@ class MiningTestNode(Node):
 
         self.test_find_grass()
         self.test_inventory()
-        # self.test_place_block() 
+        self.test_place_block() 
         # self.test_craft_crafting_table()
         # self.test_craft_wood_axe()
         # self.test_craft_iron_pick()
@@ -143,7 +143,7 @@ class MiningTestNode(Node):
         self.get_logger().info('Inventory test passed')
         return inventory.inventory[0]
 
-    def test_place_block(self, blockid=15):
+    def test_place_block(self, blockid=15): # 15 is the item for dirt
         while self.position is None:
             self.get_logger().info('Waiting for position')
             rclpy.spin_once(self)
