@@ -23,13 +23,15 @@ bot.loadPlugin(toolPlugin)
 bot.loadPlugin(collectBlock)
 bot.loadPlugin(toolPlugin)
 
+let registry = null
 
 bot.once('spawn', () => {
   bot.chat('Hello, I am MinerosBot')
   const defaultMove = new Movements(bot)
   defaultMove.allow1by1towers = false
   bot.pathfinder.setMovements(defaultMove)
-bot.pathfinder.thinkTimeout = 10000
+  bot.pathfinder.thinkTimeout = 10000
+  registry = require('prismarine-registry')(bot.version)
 
   main()
 })
@@ -127,6 +129,19 @@ class MinerosBot {
       'mineros_inter/srv/Recipe',
       '/mineros/interaction/recipe',
       this.getRecipeCallback
+    )
+
+    // Furnace
+    this.furnaceInfoService = this.node.createService(
+      'mineros_inter/srv/FurnaceInfo',
+      '/mineros/interaction/furnace_info',
+      this.furnaceInfoCallback
+    )
+
+    this.furnaceUpdateService = this.node.createService(
+      'mineros_inter/srv/FurnaceUpdate',
+      '/mineros/interaction/furnace_update',
+      this.furnaceUpdateCallback
     )
 
     // Spatial Awareness
@@ -534,6 +549,138 @@ class MinerosBot {
     result.success = returnedRecipes.length > 0
     response.send(result)
   }
+
+  async furnaceInfoCallback (request, response) {
+    let result = response.template
+    console.log('Furnace Info Callback')
+
+    let furnaceBlock = bot.blockAt(
+      new Vec3(
+        request.block_pose.position.x,
+        request.block_pose.position.y,
+        request.block_pose.position.z
+      )
+    )
+
+    if (furnaceBlock == null) {
+      console.log('Furnace block not found')
+      result.success = false
+      response.send(result)
+      return
+    } else if (furnaceBlock.type != registry.blocksByName.furnace.id) {
+      console.log('Block is not a furnace, it is: ' + furnaceBlock.displayName)
+      result.success = false
+      response.send(result)
+      return
+    }
+
+    // Look at furnace
+    bot.pathfinder.setGoal(null)
+    let goal = new GoalLookAtBlock(furnaceBlock.position, bot.world)
+
+    try {
+      await bot.pathfinder.goto(goal)
+    } catch (error) {
+      console.log('Error looking at furnace')
+      result.success = false
+      response.send(result)
+      return
+    }
+
+    console.log('Opening furnace')
+    let furnacePromise = bot.openFurnace(furnaceBlock)
+
+    furnacePromise
+      .then(furnace => {
+        let inputItem = itemToItemMsg(furnace.inputItem)
+        let fuelItem = itemToItemMsg(furnace.fuelItem)
+        let outputItem = itemToItemMsg(furnace.outputItem)
+
+        result.furnace.input_item = inputItem
+        result.furnace.fuel_item = fuelItem
+        result.furnace.output_item = outputItem
+        result.success = true
+        response.send(result)
+      })
+      .catch(error => {
+        console.log('Error opening furnace')
+        result.success = false
+        response.send(result)
+      })
+  }
+
+  furnaceUpdateCallback (request, response) {
+    let result = response.template
+    console.log('Furnace Update Callback')
+
+    let furnaceBlock = bot.blockAt(
+      new Vec3(
+        request.block_pose.position.x,
+        request.block_pose.position.y,
+        request.block_pose.position.z
+      )
+    )
+
+    if (furnaceBlock == null) {
+      console.log('Furnace block not found')
+      result.success = false
+      response.send(result)
+      return
+    } else if (furnaceBlock.type != registry.blocksByName.furnace.id) {
+      console.log('Block is not a furnace, it is: ' + furnaceBlock.displayName)
+      result.success = false
+      response.send(result)
+      return
+    }
+
+    let furnacePromise = bot.openFurnace(furnaceBlock)
+    furnacePromise
+      .then(furnace => {
+        if (furnace == null) {
+          console.log('Error opening furnace')
+          result.success = false
+          response.send(result)
+          return
+        }
+
+        let oldInputItem = furnace.inputItem()
+        let oldFuelItem = furnace.fuelItem()
+        let oldOutputItem = furnace.outputItem()
+
+        evaluateFurnaceAction(
+          request.furnace.input_item,
+          oldInputItem,
+          furnace.takeInput,
+          furnace.putInput
+        )
+
+        evaluateFurnaceAction(
+          request.furnace.output_item,
+          oldOutputItem,
+          furnace.takeOutput,
+          null
+        )
+
+        if (!request.ignore_fuel) {
+          evaluateFurnaceAction(
+            request.furnace.fuel_item,
+            oldFuelItem,
+            furnace.takeFuel,
+            furnace.putFuel
+          )
+        }
+      })
+      .catch(error => {
+        console.log('Error opening furnace')
+        result.success = false
+        response.send(result)
+        return
+      })
+
+    result.success = true
+    response.send(result)
+    return
+  }
 }
 
 // Util functions
@@ -590,11 +737,32 @@ function recipeToRecipeMsg (recipe) {
     itemMsg.id = uniqueItemIds[i]
     itemMsg.count = itemIds.filter(id => id == uniqueItemIds[i]).length
     itemMsg.metadata = 0
-    itemMsg.display_name = items.find(item => item.id == uniqueItemIds[i]).displayName
+    itemMsg.display_name = items.find(
+      item => item.id == uniqueItemIds[i]
+    ).displayName
     recipeMsg.input_items.push(itemMsg)
   }
 
   return recipeMsg
+}
+
+function itemEquals (itemMsg, mcItem) {
+  return itemMsg.id == mcItem.type && itemMsg.count == mcItem.count
+}
+
+function evaluateFurnaceAction (requestItem, oldItem, takeAction, putAction) {
+  if (requestItem != null && !itemEquals(requestItem, oldItem)) {
+    if (oldItem.count > 0) {
+      takeAction()
+    }
+    if (requestItem.count > 0) {
+      if (putAction == null) {
+        console.log('Put action is null')
+        return
+      }
+      putAction(requestItem.id, null, requestItem.count)
+    }
+  }
 }
 
 async function main () {

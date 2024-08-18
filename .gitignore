@@ -7,7 +7,6 @@ docs/itemName2id.txt
 
 # Node
 node_modules
-package-lock.json
-package.json
+
 
 ```

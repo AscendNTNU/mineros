@@ -48,7 +48,7 @@ class InteractionTestNode(Node):
             '/mineros/mining/find_blocks',
         )
         
-        self.furnace_loc = (754.452, 102.0, 1666.395)
+        self.furnace_loc = (115.86, 70.0, 188.5)
         
         self.tests()
 
@@ -56,8 +56,8 @@ class InteractionTestNode(Node):
         self.position = msg
 
     def tests(self):
-        # self.test_furnace_info()
-        # self.test_update_furnace()
+        self.test_furnace_info()
+        self.test_update_furnace()
         self.test_get_recipe()
         
         self.destroy_node()
