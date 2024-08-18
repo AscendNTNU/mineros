@@ -19,12 +19,12 @@ Google this yourself
 
 ``` sudo apt install npm ```
 
-Make sure that this is npm version 20. Which should be the case if you run this on ubuntu 22
+Make sure that this is npm version 20. Which should be the case if you run this on ubuntu 22 
 
 ### Install npm packages
 ``` npm install --save mineflayer-collectblock ```
 
-``` npm npm i rclnodejs ```
+``` npm i rclnodejs ``` 
 
 ### Building the mineros bot
 
