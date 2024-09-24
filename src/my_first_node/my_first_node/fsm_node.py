@@ -1,10 +1,11 @@
 import time
 import rclpy
 from rclpy.node import Node
+from rclpy.callback_groups import ReentrantCallbackGroup
 
 from typing import Any
 from geometry_msgs.msg import PoseStamped
-from mineros_inter.srv import BlockInfo, BotPos
+from mineros_inter.srv import BlockInfo, BotPos, MoveTo
 
 class MyFirstFSM(Node):
     """
@@ -24,34 +25,83 @@ class MyFirstFSM(Node):
         parameters that we want to be able to change from the launch file.
         """
         super().__init__('my_first_node')
+
+        #Bot position
+        self.current_position: PoseStamped = None
         
         # This is how you print to terminal in a ros node
         self.get_logger().info('Hello World!')
-        
+
+        cbt_gutta = ReentrantCallbackGroup()
+
         # This definition isnt needed for this example, it only shows how to implement a client, we wil only be using publishers
         # and subscribers for this tutorial. Implementing publishers and subscribers is similar
-        self.find_y_client = self.create_client(
-            BlockInfo,
-            '/mineros/findy'
+
+        self.local_pos_sub = self.create_subscription(
+            PoseStamped,
+            '/mineros/local_position/pose',
+            self.position_updater,
+            10,
+            callback_group= cbt_gutta
         )
+
+        #self.find_y_client = self.create_client(
+            #BlockInfo,
+            #'/mineros/findy'
+        #)
         
-        self.bot_pos_service = self.create_client(
-            BotPos,
-            '/mineros/get_bot_position',
+        #self.bot_pos_service = self.create_client(
+            #BotPos,
+            #'/mineros/get_bot_position',
+        #)
+
+        self.set_pos_client = self.create_client(
+            MoveTo,
+            '/mineros/set_position'
+
         )
         
         # Task 2
         # To make the bot move in a square we need to know the bots location and we need to be able to move the bot
         # set up the required publisher and subscriber here:
         
-        while 1:
-            while self.bot_pos_service.wait_for_service(timeout_sec=1.0) == False:
-                self.get_logger().info('Waiting for service')
-            request = BotPos.Request()
-            future = self.bot_pos_service.call_async(request)
-            rclpy.spin_until_future_complete(self, future)
-            self.get_logger().info('Result: %s' % future.result())
+        #while 1:
+            #while self.bot_pos_service.wait_for_service(timeout_sec=1.0) == False:
+                #self.get_logger().info('Waiting for service')
+            #request = BotPos.Request()
+            #future = self.bot_pos_service.call_async(request)
+            #rclpy.spin_until_future_complete(self, future)
+            #self.get_logger().info('Result: %s' % future.result())
+
+        self.move_to_pos()
+    
+
+    def position_updater(self, msg: PoseStamped):
+        self.current_position = msg
         
+    def move_to_pos(self):
+        while self.current_position == None:
+            self.get_logger().info('Waiting for position cuh !!')
+            rclpy.spin_once(self, timeout_sec=0.1)
+
+        ps = PoseStamped()
+        ps.pose.position.x = 100.0
+        ps.pose.position.y = 63.0
+        ps.pose.position.z = 100.0
+
+        move_to_command = MoveTo.Request()
+        move_to_command.pose = ps
+
+        future = self.set_pos_client.call_async(move_to_command)
+        rclpy.spin_until_future_complete(self, future)
+
+        self.get_logger().info("yeah baby !!!!!!!!!")
+
+
+
+        
+        
+
         
         
 def main(args=None):
