@@ -13,11 +13,6 @@ def generate_launch_description():
         #     description="Logging level",
         # ),
         Node(
-            package="mineros",
-            executable="mineros_main",
-            name = "mineros_bot",
-        ),
-        Node(
             package="my_first_node",
             executable="fsm",
             name = "fsm_node",
