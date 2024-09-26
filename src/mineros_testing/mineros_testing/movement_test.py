@@ -4,11 +4,11 @@ import threading
 import time
 import rclpy
 from rclpy.node import Node
-from javascript import require, On, Once, AsyncTask, once, off
+#from javascript import require, On, Once, AsyncTask, once, off
 from typing import List, Tuple
 
-from mavros_msgs.srv import WaypointPush, WaypointClear, SetMode
-from mavros_msgs.msg import Waypoint, WaypointList, WaypointReached, State
+#from mavros_msgs.srv import WaypointPush, WaypointClear, SetMode
+#from mavros_msgs.msg import Waypoint, WaypointList, WaypointReached, State
 from std_msgs.msg import Empty
 from geometry_msgs.msg import PoseStamped, PoseArray, Pose
 
@@ -48,7 +48,6 @@ class MovementTestNode(Node):
             BlockInfo,
             '/mineros/block_info'
         )
-        
         self.tests()
 
     def position_cb(self, msg: PoseStamped):
