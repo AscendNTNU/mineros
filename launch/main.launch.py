@@ -12,14 +12,19 @@ def generate_launch_description():
         #     default_value=["info"],
         #     description="Logging level",
         # ),
+        #Node(
+        #    package="my_first_node",
+        #    executable="fsm",
+        #    name = "fsm_node",
+        # ),
+        #Node(
+        #    package="my_first_node",
+        #    executable="helper",
+        #    name = "helper_node",
+        #),
         Node(
-            package="my_first_node",
-            executable="fsm",
-            name = "fsm_node",
-         ),
-        Node(
-            package="my_first_node",
-            executable="helper",
-            name = "helper_node",
+            package="mineros_testing",
+            executable="movement_tester",
+            name = "movement_tester",
         ),
     ])

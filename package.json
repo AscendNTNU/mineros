@@ -1,11 +1,24 @@
 {
   "dependencies": {
     "mineflayer-collectblock": "^1.4.1",
-    "rclnodejs": "^0.27.3"
+    "rclnodejs": "^0.27.4"
   },
   "devDependencies": {
     "@eslint/js": "^9.9.0",
     "eslint": "^9.9.0",
     "globals": "^15.9.0"
-  }
+  },
+  "name": "mineros",
+  "version": "1.0.0",
+  "description": "MineROS allows the user to fully control a mc bot using ros services and topics, The current version of MineROS is made for ROS2 Humble and is still in development. The purpose of this project is to give a conducive learning environment for people who want to learn ROS2 and python. Specifically for people who want to learn mavros, as this is what the project attempts to mock.",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
 }
