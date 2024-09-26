@@ -336,7 +336,12 @@ class MinerosBot {
     // Check if the block is mineable
     await bot.tool.equipForBlock(block)
     let heldItem = bot.heldItem
-    if (!block.canHarvest(heldItem.type)) {
+    let heldItemType = null
+    if (heldItem != null) {
+      heldItemType = heldItem.type
+    }
+
+    if (!block.canHarvest(heldItemType)) {
       console.log(
         'Cannot harvest block: ' +
           block.displayName +
