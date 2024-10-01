@@ -41,14 +41,13 @@ class MyFirstHelperNode(Node):
             callback_group=cb_group
         )
     
-    
     def position_cb(self, msg: PoseStamped):
         self.current_position = msg
         
     def get_bot_position_cb(self, request, response):
         while self.current_position is None:
             self.get_logger().info('Waiting for position')
-            time.sleep(0.1)
+            time.sleep(1)
             
         response.bot_pos = self.current_position
         return response
